@@ -193,8 +193,13 @@ def _live_price_history(params: dict) -> dict:
     result = obb.equity.price.historical(symbol=symbol, start_date=start)  # type: ignore
     df = result.to_df()
     records = []
-    for _, row in df.iterrows():
-        records.append({k: _make_serializable(v) for k, v in row.to_dict().items()})
+    for idx, row in df.iterrows():
+        rec = {k: _make_serializable(v) for k, v in row.to_dict().items()}
+        # The DataFrame index often holds the date — preserve it if not
+        # already present as a column.
+        if "date" not in rec:
+            rec["date"] = _make_serializable(idx)
+        records.append(rec)
     return {"symbol": symbol, "records": records, "provider": getattr(result, "provider", None)}
 
 

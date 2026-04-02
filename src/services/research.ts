@@ -137,7 +137,11 @@ export class ResearchService {
     return {
       symbol: (d.symbol as string) ?? symbol,
       name: d.name as string | undefined,
-      price: Number(d.price ?? d.last_price ?? 0),
+      price: Number(
+        d.price ?? d.last_price ?? d.close ?? d.last_trade_price
+          ?? d.prev_close ?? d.previous_close ?? d.regular_market_previous_close
+          ?? d.adj_close ?? 0,
+      ),
       change: Number(d.change ?? 0),
       changePct: Number(d.change_percent ?? d.change_pct ?? 0),
       volume: Number(d.volume ?? 0),
