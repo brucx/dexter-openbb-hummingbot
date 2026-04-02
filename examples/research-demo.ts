@@ -5,12 +5,16 @@
  * Usage:
  *   npx tsx examples/research-demo.ts [SYMBOL]
  *
- * Examples:
- *   npx tsx examples/research-demo.ts          # defaults to AAPL
- *   npx tsx examples/research-demo.ts MSFT
+ * Environment:
+ *   OPENBB_BRIDGE_MODE=auto      (default) try live OpenBB, fall back to sample data
+ *   OPENBB_BRIDGE_MODE=live      require live OpenBB (fails if SDK missing)
+ *   OPENBB_BRIDGE_MODE=fallback  force deterministic sample data
  *
- * This runs the OpenBB bridge (fallback mode if openbb is not installed),
- * fetches a research snapshot, and produces a draft TradeIntent proposal.
+ * Examples:
+ *   npx tsx examples/research-demo.ts                          # auto mode, AAPL
+ *   npx tsx examples/research-demo.ts MSFT                     # auto mode, MSFT
+ *   OPENBB_BRIDGE_MODE=fallback npx tsx examples/research-demo.ts  # force fallback
+ *   OPENBB_BRIDGE_MODE=live npx tsx examples/research-demo.ts      # force live
  *
  * No real trades are made. No real money is involved.
  */
@@ -21,19 +25,34 @@ import { createProposalStore } from "../src/services/persistence";
 import { formatProposal, formatProposalList } from "../src/services/format";
 
 const symbol = process.argv[2] ?? "AAPL";
+const bridgeMode = process.env.OPENBB_BRIDGE_MODE ?? "auto";
 
 console.log(`\n=== Dexter Research Demo ===`);
-console.log(`Symbol: ${symbol}\n`);
+console.log(`Symbol: ${symbol}`);
+console.log(`Bridge mode: ${bridgeMode}\n`);
 
-const service = new ResearchService({
-  env: { OPENBB_BRIDGE_MODE: "fallback" }, // force fallback for demo reliability
-});
+const env: Record<string, string> = {};
+if (bridgeMode !== "auto") {
+  env.OPENBB_BRIDGE_MODE = bridgeMode;
+}
+// In "auto" mode we don't set the env var, so the Python bridge
+// will try to import OpenBB and fall back gracefully if unavailable.
+
+const service = new ResearchService({ env });
 
 try {
   service.start();
 
   // Give the bridge a moment to initialize
   await new Promise((r) => setTimeout(r, 500));
+
+  if (!service.ready) {
+    console.error("Bridge process exited during startup.");
+    for (const line of service.diagnostics) {
+      console.error(`  ${line}`);
+    }
+    process.exit(1);
+  }
 
   console.log("1. Fetching research snapshot...");
   const snapshot = await service.research(symbol);

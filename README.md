@@ -101,18 +101,36 @@ npm test
 # Run all tests (unit + integration + persistence/format)
 npm run test:all
 
-# Run the research demo (uses fallback data — no API keys needed)
+# Run the research demo (auto mode: uses live OpenBB if installed, falls back to sample data)
 npm run demo
 
-# Run the low-level bridge protocol test
-npm run demo:bridge
+# Force live mode (requires `pip install openbb` — fails if SDK missing)
+npm run demo:live
+
+# Force fallback mode (deterministic sample data, no dependencies)
+npm run demo:fallback
 
 # Run with a different symbol
 npx tsx examples/research-demo.ts MSFT
 
-# Copy and edit config (for live OpenBB data)
-cp config/example.env .env
+# Run the low-level bridge protocol test
+npm run demo:bridge
 ```
+
+### Bridge modes
+
+The OpenBB bridge supports three modes, controlled by the `OPENBB_BRIDGE_MODE` environment variable:
+
+| Mode | Env value | Behavior |
+|------|-----------|----------|
+| **Auto** (default) | `auto` or unset | Tries to import OpenBB SDK; uses live data if available, otherwise falls back to sample data |
+| **Live** | `live` | Requires OpenBB SDK; exits with error if not installed |
+| **Fallback** | `fallback` | Always uses deterministic sample data — no external dependencies needed |
+
+**Prerequisites for live mode:**
+- Python 3.10+
+- `pip install openbb` (and any provider extensions you need, e.g. `openbb[yfinance]`)
+- API keys configured per OpenBB docs (some providers like Yahoo Finance work without keys)
 
 ## Documentation
 

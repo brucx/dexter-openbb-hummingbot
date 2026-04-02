@@ -4,12 +4,13 @@ OpenBB Bridge — JSON Lines stdin/stdout bridge for Dexter ↔ OpenBB communica
 Reads JSON requests from stdin, calls OpenBB, writes JSON responses to stdout.
 Logs go to stderr so they don't interfere with the protocol.
 
-Supports two modes:
-  1. LIVE mode — uses the openbb SDK (requires `pip install openbb`)
-  2. FALLBACK mode — returns deterministic sample data (no dependencies)
+Supports three mode settings via OPENBB_BRIDGE_MODE env var:
 
-The bridge auto-detects which mode to use based on whether openbb is importable.
-Set OPENBB_BRIDGE_MODE=fallback to force fallback mode for testing.
+  auto     (default) — try to import openbb; use LIVE if available, FALLBACK otherwise
+  live     — require openbb SDK; exit with error if not installed
+  fallback — force deterministic sample data (no dependencies needed)
+
+The bridge auto-detects which mode to use when OPENBB_BRIDGE_MODE is unset or "auto".
 """
 
 import json
@@ -22,12 +23,29 @@ logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="[openbb-bridg
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Try to import OpenBB
+# Mode detection
 # ---------------------------------------------------------------------------
 OPENBB_AVAILABLE = False
 obb = None
 
-if os.environ.get("OPENBB_BRIDGE_MODE") != "fallback":
+_mode = os.environ.get("OPENBB_BRIDGE_MODE", "auto").lower()
+
+if _mode == "fallback":
+    log.info("OPENBB_BRIDGE_MODE=fallback — running in FALLBACK mode")
+elif _mode in ("auto", "live"):
+    try:
+        from openbb import obb as _obb  # type: ignore
+        obb = _obb
+        OPENBB_AVAILABLE = True
+        log.info("OpenBB SDK loaded — running in LIVE mode")
+    except ImportError:
+        if _mode == "live":
+            log.error("OPENBB_BRIDGE_MODE=live but OpenBB SDK is not installed. "
+                      "Install with: pip install openbb")
+            sys.exit(1)
+        log.info("OpenBB SDK not found — running in FALLBACK mode (deterministic sample data)")
+else:
+    log.warning(f"Unknown OPENBB_BRIDGE_MODE={_mode!r}, treating as 'auto'")
     try:
         from openbb import obb as _obb  # type: ignore
         obb = _obb
@@ -35,8 +53,6 @@ if os.environ.get("OPENBB_BRIDGE_MODE") != "fallback":
         log.info("OpenBB SDK loaded — running in LIVE mode")
     except ImportError:
         log.info("OpenBB SDK not found — running in FALLBACK mode (deterministic sample data)")
-else:
-    log.info("OPENBB_BRIDGE_MODE=fallback — running in FALLBACK mode")
 
 
 # ---------------------------------------------------------------------------

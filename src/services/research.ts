@@ -107,6 +107,16 @@ export class ResearchService {
     this._started = false;
   }
 
+  /** Whether the bridge subprocess is running. */
+  get ready(): boolean {
+    return this.client.ready;
+  }
+
+  /** Recent stderr output from the bridge (for diagnostics). */
+  get diagnostics(): string[] {
+    return this.client.diagnostics;
+  }
+
   // -- Individual queries --------------------------------------------------
 
   async getQuote(symbol: string): Promise<QuoteData> {

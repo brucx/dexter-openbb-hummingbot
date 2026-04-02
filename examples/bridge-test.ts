@@ -5,6 +5,9 @@
  * Usage:
  *   npx tsx examples/bridge-test.ts
  *
+ * Environment:
+ *   OPENBB_BRIDGE_MODE=auto|live|fallback  (default: auto)
+ *
  * Sends individual JSON Lines requests to the Python bridge and prints responses.
  * Useful for verifying the bridge works before running the full research pipeline.
  */
@@ -18,11 +21,17 @@ const __dirname = dirname(__filename);
 const bridgePath = join(__dirname, "..", "src", "bridge", "openbb_bridge.py");
 
 async function main() {
-  console.log("=== OpenBB Bridge Protocol Test ===\n");
+  const bridgeMode = process.env.OPENBB_BRIDGE_MODE ?? "auto";
+  console.log(`=== OpenBB Bridge Protocol Test (${bridgeMode} mode) ===\n`);
+
+  const env: Record<string, string> = {};
+  if (bridgeMode !== "auto") {
+    env.OPENBB_BRIDGE_MODE = bridgeMode;
+  }
 
   const client = new BridgeClient({
     scriptPath: bridgePath,
-    env: { OPENBB_BRIDGE_MODE: "fallback" },
+    env,
   });
 
   client.start();
