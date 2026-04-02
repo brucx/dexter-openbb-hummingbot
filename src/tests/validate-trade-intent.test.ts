@@ -267,7 +267,7 @@ test("auto-draft produces a valid proposal", () => {
   assert(result.usedFallbackData === true, "should flag fallback data");
 });
 
-test("auto-draft respects overrides", () => {
+test("auto-draft respects overrides (confidence capped by data quality)", () => {
   const research = mockResearchSnapshot();
   const result = autoDraftProposal(research, {
     direction: "short",
@@ -277,7 +277,9 @@ test("auto-draft respects overrides", () => {
 
   assert(result.intent !== null, "should produce a valid intent");
   assert(result.intent!.direction === "short", "should respect direction override");
-  assert(result.intent!.confidence === "high", "should respect confidence override");
+  // Fixture uses all-fallback data → high is capped to medium
+  assert(result.intent!.confidence === "medium", "high capped to medium with fallback data");
+  assert(result.dataQuality.confidenceWasCapped === true, "should flag that confidence was capped");
   assert(result.intent!.quantity === 100, "should respect quantity override");
 });
 

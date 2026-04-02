@@ -46,6 +46,22 @@ without re-running research or guessing what data was available.
 - [x] Handle missing/partial research gracefully — honest display, never hidden
 - [x] Review UX tests (77 tests)
 
+## Phase 2.7: Partial Research Graceful Degradation — COMPLETE
+
+Goal: Make proposals more honest and robust when some research inputs are missing
+or fallback/sample-based. Data quality affects proposal content, not just display.
+
+- [x] `assessDataQuality()` — scores ResearchSnapshot completeness (live/fallback/missing per source)
+- [x] Confidence capping: proposal confidence auto-capped based on data availability
+  - Quote missing → max "low" (no price = no conviction)
+  - Any core source (quote/history/financials) missing → max "medium"
+  - Core sources present but fallback → max "medium"
+  - All core sources live → max "high" (news is supplementary)
+- [x] Thesis caveats: auto-prefixed with `[LIMITED DATA]` or `[WEAK EVIDENCE]` when warranted
+- [x] Risk injection: data-gap risks auto-appended to `key_risks` (no duplicates)
+- [x] `DataQualityAssessment` attached to every `ProposalResult` for downstream consumers
+- [x] Data quality tests (32 tests)
+
 ## Next Implementation Target
 
 - [ ] Trade analysis skill (SKILL.md) — guided research → proposal workflow

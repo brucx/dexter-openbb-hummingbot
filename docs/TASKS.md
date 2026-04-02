@@ -85,6 +85,20 @@ Concrete work items grouped by phase. Each task is small enough to be a single P
 
 ---
 
+## Phase 2.7: Partial Research Graceful Degradation
+
+### Data Quality Assessment
+- [x] `assessDataQuality(ResearchSnapshot)` — per-source status (live/fallback/missing), counts, max confidence
+- [x] Confidence capping in `buildProposal()` — caps requested confidence to data-justified max
+- [x] Thesis caveats — auto-prefix `[LIMITED DATA]` or `[WEAK EVIDENCE]` based on gap severity
+- [x] Risk injection — auto-append data-gap warnings to `key_risks`, deduplicated
+- [x] `DataQualityAssessment` type exported and attached to `ProposalResult`
+- [x] Updated `autoDraftProposal()` — removed manual fallback risk (now handled by buildProposal)
+- [x] Data quality tests: 32 tests covering assessment, capping, caveats, risk injection
+- [x] Updated existing tests to reflect confidence capping behavior
+
+---
+
 ## Phase 3: Hummingbot Paper Trading Bridge
 
 ### Hummingbot Bridge (Python side)

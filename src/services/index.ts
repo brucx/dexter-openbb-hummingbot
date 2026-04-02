@@ -9,8 +9,8 @@ export type {
   ResearchSnapshot,
 } from "./research";
 
-export { buildProposal, autoDraftProposal } from "./proposal";
-export type { ProposalInput, ProposalResult } from "./proposal";
+export { buildProposal, autoDraftProposal, assessDataQuality } from "./proposal";
+export type { ProposalInput, ProposalResult, DataQualityAssessment, SourceStatus } from "./proposal";
 
 export { createProposalStore } from "./persistence";
 export type { ProposalStore, StatusUpdate } from "./persistence";
