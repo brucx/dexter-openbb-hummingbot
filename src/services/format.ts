@@ -5,6 +5,19 @@
  */
 
 import type { TradeIntent } from "../types/trade-intent";
+import type { ResearchSnapshot } from "./research";
+
+/** Status of an individual data source in the research snapshot. */
+export type DataSourceStatus = "live" | "fallback" | "unavailable";
+
+/** Availability of each research data source. */
+export interface DataAvailability {
+  quote: DataSourceStatus;
+  priceHistory: DataSourceStatus;
+  financials: DataSourceStatus;
+  news: DataSourceStatus;
+  errors?: string[];
+}
 
 /** Key research data points to surface in proposal display. */
 export interface ResearchSummary {
@@ -16,7 +29,72 @@ export interface ResearchSummary {
   peRatio?: number;
   priceRangeHigh?: number;
   priceRangeLow?: number;
+  /** Financials highlights */
+  revenue?: number;
+  netIncome?: number;
+  eps?: number;
+  financialsPeriod?: string;
+  /** Top news headlines */
+  newsHeadlines?: string[];
   newsCount?: number;
+  /** Data source availability */
+  dataAvailability?: DataAvailability;
+  /** Research snapshot timestamp */
+  researchTimestamp?: string;
+}
+
+/** Extract a display-ready ResearchSummary from a full ResearchSnapshot. */
+export function buildResearchSummary(snapshot: ResearchSnapshot): ResearchSummary {
+  const summary: ResearchSummary = {
+    researchTimestamp: snapshot.timestamp,
+  };
+
+  // Quote data
+  if (snapshot.quote) {
+    summary.currentPrice = snapshot.quote.price;
+    summary.dayChange = snapshot.quote.change;
+    summary.dayChangePct = snapshot.quote.changePct;
+    summary.volume = snapshot.quote.volume;
+    if (snapshot.quote.marketCap != null) summary.marketCap = snapshot.quote.marketCap;
+    if (snapshot.quote.peRatio != null) summary.peRatio = snapshot.quote.peRatio;
+  }
+
+  // Price history → 30d range
+  if (snapshot.priceHistory && snapshot.priceHistory.records.length > 0) {
+    const prices = snapshot.priceHistory.records.map((r) => r.close);
+    summary.priceRangeLow = Math.min(...prices);
+    summary.priceRangeHigh = Math.max(...prices);
+  }
+
+  // Financials
+  if (snapshot.financials) {
+    const inc = snapshot.financials.incomeStatement;
+    if (inc.revenue != null) summary.revenue = Number(inc.revenue);
+    if (inc.net_income != null) summary.netIncome = Number(inc.net_income);
+    if (inc.eps != null) summary.eps = Number(inc.eps);
+    summary.financialsPeriod = snapshot.financials.period;
+  }
+
+  // News
+  if (snapshot.news) {
+    summary.newsCount = snapshot.news.articles.length;
+    summary.newsHeadlines = snapshot.news.articles.slice(0, 3).map((a) => a.title);
+  }
+
+  // Data availability
+  const sourceStatus = (data: { isFallback: boolean } | null): DataSourceStatus => {
+    if (!data) return "unavailable";
+    return data.isFallback ? "fallback" : "live";
+  };
+  summary.dataAvailability = {
+    quote: sourceStatus(snapshot.quote),
+    priceHistory: sourceStatus(snapshot.priceHistory),
+    financials: sourceStatus(snapshot.financials),
+    news: sourceStatus(snapshot.news),
+    errors: snapshot.errors.length > 0 ? snapshot.errors : undefined,
+  };
+
+  return summary;
 }
 
 /** Format a single TradeIntent for terminal display. */
@@ -73,7 +151,8 @@ export function formatProposal(intent: TradeIntent, opts?: { showId?: boolean; u
   if (opts?.researchSummary) {
     const rs = opts.researchSummary;
     lines.push(`│`);
-    lines.push(`│ Research snapshot:`);
+    const ts = rs.researchTimestamp ? ` (${rs.researchTimestamp.slice(0, 16).replace("T", " ")})` : "";
+    lines.push(`│ Research snapshot:${ts}`);
     if (rs.currentPrice != null) {
       const chg = rs.dayChange != null && rs.dayChangePct != null
         ? `  (${rs.dayChange >= 0 ? "+" : ""}${rs.dayChange.toFixed(2)} / ${rs.dayChangePct >= 0 ? "+" : ""}${rs.dayChangePct.toFixed(2)}%)`
@@ -86,7 +165,43 @@ export function formatProposal(intent: TradeIntent, opts?: { showId?: boolean; u
     if (rs.priceRangeHigh != null && rs.priceRangeLow != null) {
       lines.push(`│   30d Range: $${rs.priceRangeLow} – $${rs.priceRangeHigh}`);
     }
-    if (rs.newsCount != null) lines.push(`│   News articles: ${rs.newsCount}`);
+
+    // Financials highlights
+    if (rs.revenue != null || rs.netIncome != null || rs.eps != null) {
+      const period = rs.financialsPeriod ? ` (${rs.financialsPeriod})` : "";
+      lines.push(`│`);
+      lines.push(`│ Financials${period}:`);
+      if (rs.revenue != null) lines.push(`│   Revenue:    $${formatNumber(rs.revenue)}`);
+      if (rs.netIncome != null) lines.push(`│   Net Income: $${formatNumber(rs.netIncome)}`);
+      if (rs.eps != null) lines.push(`│   EPS:        $${rs.eps.toFixed(2)}`);
+    }
+
+    // News headlines
+    if (rs.newsHeadlines && rs.newsHeadlines.length > 0) {
+      lines.push(`│`);
+      lines.push(`│ Recent news:`);
+      for (const h of rs.newsHeadlines.slice(0, 3)) {
+        lines.push(`│   • ${h}`);
+      }
+      if (rs.newsCount != null && rs.newsCount > rs.newsHeadlines.length) {
+        lines.push(`│   (${rs.newsCount - rs.newsHeadlines.length} more)`);
+      }
+    } else if (rs.newsCount != null) {
+      lines.push(`│   News articles: ${rs.newsCount}`);
+    }
+
+    // Data availability
+    if (rs.dataAvailability) {
+      const da = rs.dataAvailability;
+      lines.push(`│`);
+      lines.push(`│ Data sources:`);
+      lines.push(`│   ${fmtSource("Quote", da.quote)}  ${fmtSource("History", da.priceHistory)}  ${fmtSource("Financials", da.financials)}  ${fmtSource("News", da.news)}`);
+      if (da.errors && da.errors.length > 0) {
+        for (const e of da.errors) {
+          lines.push(`│   ! ${e}`);
+        }
+      }
+    }
   }
 
   if (intent.approved_by || intent.approved_at) {
@@ -109,23 +224,53 @@ export function formatProposal(intent: TradeIntent, opts?: { showId?: boolean; u
   return lines.join("\n");
 }
 
+/** Optional price context for list display. Keyed by proposal ID. */
+export type ListPriceContext = Map<string, { price: number; changePct?: number }>;
+
 /** Format a list of proposals as a summary table. */
-export function formatProposalList(intents: TradeIntent[]): string {
+export function formatProposalList(intents: TradeIntent[], priceCtx?: ListPriceContext): string {
   if (intents.length === 0) return "No saved proposals.";
 
+  const showPrice = priceCtx && priceCtx.size > 0;
   const lines: string[] = [];
-  lines.push(`  ${"ID".padEnd(10)} ${"Asset".padEnd(10)} ${"Dir".padEnd(6)} ${"Qty".padEnd(8)} ${"Conf".padEnd(7)} ${"Status".padEnd(10)} Created`);
-  lines.push(`  ${"─".repeat(10)} ${"─".repeat(10)} ${"─".repeat(6)} ${"─".repeat(8)} ${"─".repeat(7)} ${"─".repeat(10)} ${"─".repeat(20)}`);
+
+  const hdr = showPrice
+    ? `  ${"ID".padEnd(10)} ${"Asset".padEnd(10)} ${"Dir".padEnd(6)} ${"Price".padEnd(12)} ${"Conf".padEnd(7)} ${"Status".padEnd(10)} Created`
+    : `  ${"ID".padEnd(10)} ${"Asset".padEnd(10)} ${"Dir".padEnd(6)} ${"Qty".padEnd(8)} ${"Conf".padEnd(7)} ${"Status".padEnd(10)} Created`;
+  lines.push(hdr);
+
+  const sep = showPrice
+    ? `  ${"─".repeat(10)} ${"─".repeat(10)} ${"─".repeat(6)} ${"─".repeat(12)} ${"─".repeat(7)} ${"─".repeat(10)} ${"─".repeat(20)}`
+    : `  ${"─".repeat(10)} ${"─".repeat(10)} ${"─".repeat(6)} ${"─".repeat(8)} ${"─".repeat(7)} ${"─".repeat(10)} ${"─".repeat(20)}`;
+  lines.push(sep);
 
   for (const i of intents) {
     const created = i.timestamp.slice(0, 16).replace("T", " ");
     const shortId = i.id.slice(0, 8) + "…";
-    lines.push(
-      `  ${shortId.padEnd(10)} ${i.asset.padEnd(10)} ${i.direction.padEnd(6)} ${String(i.quantity).padEnd(8)} ${i.confidence.padEnd(7)} ${i.status.padEnd(10)} ${created}`,
-    );
+    if (showPrice) {
+      const ctx = priceCtx!.get(i.id);
+      const priceStr = ctx
+        ? `$${ctx.price}${ctx.changePct != null ? ` ${ctx.changePct >= 0 ? "+" : ""}${ctx.changePct.toFixed(1)}%` : ""}`
+        : "—";
+      lines.push(
+        `  ${shortId.padEnd(10)} ${i.asset.padEnd(10)} ${i.direction.padEnd(6)} ${priceStr.padEnd(12)} ${i.confidence.padEnd(7)} ${i.status.padEnd(10)} ${created}`,
+      );
+    } else {
+      lines.push(
+        `  ${shortId.padEnd(10)} ${i.asset.padEnd(10)} ${i.direction.padEnd(6)} ${String(i.quantity).padEnd(8)} ${i.confidence.padEnd(7)} ${i.status.padEnd(10)} ${created}`,
+      );
+    }
   }
 
   return lines.join("\n");
+}
+
+function fmtSource(label: string, status: DataSourceStatus): string {
+  switch (status) {
+    case "live": return `${label}: OK`;
+    case "fallback": return `${label}: SAMPLE`;
+    case "unavailable": return `${label}: --`;
+  }
 }
 
 function formatNumber(n: number): string {

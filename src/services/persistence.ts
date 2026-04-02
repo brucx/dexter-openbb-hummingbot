@@ -8,12 +8,19 @@
 import { mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { TradeIntent } from "../types/trade-intent";
+import type { ResearchSnapshot } from "./research";
 
 const DEFAULT_DIR = "data/proposals";
 
 export interface ProposalStore {
   /** Save a proposal to disk. Returns the file path. */
   save(intent: TradeIntent): string;
+
+  /** Save the research snapshot that backs a proposal (sidecar file). */
+  saveResearch(id: string, snapshot: ResearchSnapshot): string;
+
+  /** Load the research snapshot for a proposal. Returns null if not found. */
+  loadResearch(id: string): ResearchSnapshot | null;
 
   /** Load a proposal by ID. Returns null if not found. */
   load(id: string): TradeIntent | null;
@@ -37,10 +44,16 @@ export interface StatusUpdate {
 export function createProposalStore(dir = DEFAULT_DIR): ProposalStore {
   mkdirSync(dir, { recursive: true });
 
+  function sanitizeId(id: string): string {
+    return id.replace(/[^a-zA-Z0-9\-]/g, "");
+  }
+
   function filePath(id: string): string {
-    // Sanitize ID to prevent directory traversal
-    const safe = id.replace(/[^a-zA-Z0-9\-]/g, "");
-    return join(dir, `${safe}.json`);
+    return join(dir, `${sanitizeId(id)}.json`);
+  }
+
+  function researchPath(id: string): string {
+    return join(dir, `${sanitizeId(id)}.research.json`);
   }
 
   return {
@@ -48,6 +61,19 @@ export function createProposalStore(dir = DEFAULT_DIR): ProposalStore {
       const path = filePath(intent.id);
       writeFileSync(path, JSON.stringify(intent, null, 2) + "\n", "utf-8");
       return path;
+    },
+
+    saveResearch(id: string, snapshot: ResearchSnapshot): string {
+      const path = researchPath(id);
+      writeFileSync(path, JSON.stringify(snapshot, null, 2) + "\n", "utf-8");
+      return path;
+    },
+
+    loadResearch(id: string): ResearchSnapshot | null {
+      const path = researchPath(id);
+      if (!existsSync(path)) return null;
+      const raw = readFileSync(path, "utf-8");
+      return JSON.parse(raw) as ResearchSnapshot;
     },
 
     load(id: string): TradeIntent | null {
@@ -60,7 +86,7 @@ export function createProposalStore(dir = DEFAULT_DIR): ProposalStore {
     list(): string[] {
       if (!existsSync(dir)) return [];
       return readdirSync(dir)
-        .filter((f) => f.endsWith(".json"))
+        .filter((f) => f.endsWith(".json") && !f.endsWith(".research.json"))
         .map((f) => f.replace(/\.json$/, ""))
         .sort()
         .reverse();

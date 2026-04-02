@@ -33,9 +33,21 @@
 - [x] CLI tests (34 tests)
 - [x] npm scripts: `cli`, `test:cli`
 
+## Phase 2.6: Proposal Review UX — COMPLETE
+
+Goal: Make `proposals show` useful enough for a human operator to judge a proposal
+without re-running research or guessing what data was available.
+
+- [x] Persist research snapshot as sidecar file (`{id}.research.json`) alongside proposals
+- [x] Extract key research data points into enriched ResearchSummary (financials, news headlines)
+- [x] Show explicit data availability section: which sources succeeded / failed / used fallback
+- [x] Enrich `proposals show` with financials highlights (revenue, EPS, net income) and top news
+- [x] Add price context (current price, day change) to `proposals list` for faster scanning
+- [x] Handle missing/partial research gracefully — honest display, never hidden
+- [x] Review UX tests (77 tests)
+
 ## Next Implementation Target
 
 - [ ] Trade analysis skill (SKILL.md) — guided research → proposal workflow
-- [ ] Embed ResearchSummary in saved proposals at creation time (persist research data points)
 - [ ] Emit `trade_proposal` event for Dexter event stream integration
 - [ ] Phase 3: Hummingbot paper trading bridge (when ready)

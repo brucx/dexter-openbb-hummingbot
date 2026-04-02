@@ -72,6 +72,9 @@ Concrete work items grouped by phase. Each task is small enough to be a single P
 - [x] Show: asset, direction, size, thesis, confidence, risks
 - [x] Show: relevant data points from research via ResearchSummary (price, P/E, volume, etc.)
 - [x] Show: approval/rejection metadata in formatted output
+- [x] Enrich `proposals show` with financials highlights, news headlines, data availability
+- [x] Add price context to `proposals list` for faster scanning
+- [x] Persist research snapshot as sidecar for later review display
 
 ### Persistence
 - [x] Save proposals to `data/proposals/{id}.json` (`src/services/persistence.ts`)

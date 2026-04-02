@@ -10,7 +10,8 @@
  */
 
 import { createProposalStore } from "./services/persistence";
-import { formatProposal, formatProposalList } from "./services/format";
+import { formatProposal, formatProposalList, buildResearchSummary } from "./services/format";
+import type { ListPriceContext } from "./services/format";
 
 const store = createProposalStore();
 
@@ -67,8 +68,16 @@ if (domain === "proposals" || domain === "p") {
       if (proposals.length === 0) {
         console.log(statusFilter ? `No proposals with status "${statusFilter}".` : "No saved proposals.");
       } else {
+        // Build price context from research sidecars
+        const priceCtx: ListPriceContext = new Map();
+        for (const p of proposals) {
+          const snap = store.loadResearch(p.id);
+          if (snap?.quote) {
+            priceCtx.set(p.id, { price: snap.quote.price, changePct: snap.quote.changePct });
+          }
+        }
         console.log(`\n${proposals.length} proposal(s)${statusFilter ? ` [${statusFilter}]` : ""}:\n`);
-        console.log(formatProposalList(proposals));
+        console.log(formatProposalList(proposals, priceCtx.size > 0 ? priceCtx : undefined));
         console.log();
       }
       break;
@@ -88,8 +97,19 @@ if (domain === "proposals" || domain === "p") {
         console.error(`Proposal ${id} not found.`);
         process.exit(1);
       }
+
+      // Load research sidecar for enriched display
+      const snapshot = store.loadResearch(id);
+      const researchSummary = snapshot ? buildResearchSummary(snapshot) : undefined;
+      const usedFallbackData = snapshot
+        ? Boolean(snapshot.quote?.isFallback || snapshot.priceHistory?.isFallback || snapshot.financials?.isFallback || snapshot.news?.isFallback)
+        : undefined;
+
       console.log();
-      console.log(formatProposal(intent, { showId: true }));
+      console.log(formatProposal(intent, { showId: true, usedFallbackData, researchSummary }));
+      if (!snapshot) {
+        console.log(`  (No research snapshot saved for this proposal)`);
+      }
       console.log();
       break;
     }

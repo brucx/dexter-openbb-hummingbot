@@ -134,6 +134,8 @@ try {
     const store = createProposalStore();
     const path = store.save(result.intent);
     console.log(`  Saved: ${path}`);
+    const rpath = store.saveResearch(result.intent.id, snapshot);
+    console.log(`  Research: ${rpath}`);
 
     const all = store.loadAll();
     console.log(`\n--- Saved Proposals (${all.length} total) ---`);
