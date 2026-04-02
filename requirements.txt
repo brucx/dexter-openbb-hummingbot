@@ -1,0 +1,12 @@
+# Python dependencies for the OpenBB bridge.
+#
+# The bridge runs in FALLBACK mode with zero dependencies.
+# Install these only if you want LIVE market data from OpenBB.
+#
+# pip install -r requirements.txt
+
+# Core OpenBB SDK (required for live mode)
+# openbb[all]>=4.0.0
+
+# Minimum for yfinance provider (free, no API key):
+# openbb[yfinance]>=4.0.0
