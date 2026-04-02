@@ -22,7 +22,7 @@ export interface LLMConfig {
   /** API key */
   apiKey: string;
 
-  /** Model identifier (e.g. "gpt-4o", "claude-sonnet-4-20250514") */
+  /** Model identifier (e.g. "gpt-5.4", "claude-sonnet-4-20250514") */
   model: string;
 
   /** Base URL for the API (OpenAI-compatible only) */
@@ -48,7 +48,7 @@ export interface LLMAvailability {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_OPENAI_BASE = "https://api.openai.com/v1";
-const DEFAULT_OPENAI_MODEL = "gpt-4o";
+const DEFAULT_OPENAI_MODEL = "gpt-5.4";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
 
 // ---------------------------------------------------------------------------

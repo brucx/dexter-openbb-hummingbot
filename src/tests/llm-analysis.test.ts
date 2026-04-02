@@ -114,11 +114,11 @@ test("respects DEXTER_MODEL for provider selection", () => {
   const result = detectLLMConfig({
     ANTHROPIC_API_KEY: "sk-ant-test",
     OPENAI_API_KEY: "sk-oai-test",
-    DEXTER_MODEL: "gpt-4o",
+    DEXTER_MODEL: "gpt-5.4",
   });
   assert(result.available, "should be available");
-  assert(result.config!.provider === "openai", "DEXTER_MODEL=gpt-4o should select openai");
-  assert(result.config!.model === "gpt-4o", "model should match DEXTER_MODEL");
+  assert(result.config!.provider === "openai", "DEXTER_MODEL=gpt-5.4 should select openai");
+  assert(result.config!.model === "gpt-5.4", "model should match DEXTER_MODEL");
 });
 
 test("DEXTER_MODEL with claude prefix selects Anthropic", () => {
