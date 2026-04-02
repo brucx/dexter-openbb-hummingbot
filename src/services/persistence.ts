@@ -23,6 +23,15 @@ export interface ProposalStore {
 
   /** Load all saved proposals, most recent first. */
   loadAll(): TradeIntent[];
+
+  /** Update a proposal's status (approve/reject). Returns the updated intent, or null if not found. */
+  updateStatus(id: string, update: StatusUpdate): TradeIntent | null;
+}
+
+export interface StatusUpdate {
+  status: "approved" | "rejected";
+  approved_by?: string;
+  rejection_reason?: string;
 }
 
 export function createProposalStore(dir = DEFAULT_DIR): ProposalStore {
@@ -62,6 +71,23 @@ export function createProposalStore(dir = DEFAULT_DIR): ProposalStore {
         .map((id) => this.load(id))
         .filter((i): i is TradeIntent => i !== null)
         .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    },
+
+    updateStatus(id: string, update: StatusUpdate): TradeIntent | null {
+      const intent = this.load(id);
+      if (!intent) return null;
+
+      intent.status = update.status;
+      if (update.status === "approved") {
+        intent.approved_by = update.approved_by ?? "human";
+        intent.approved_at = new Date().toISOString();
+      }
+      if (update.status === "rejected" && update.rejection_reason) {
+        intent.rejection_reason = update.rejection_reason;
+      }
+
+      this.save(intent);
+      return intent;
     },
   };
 }

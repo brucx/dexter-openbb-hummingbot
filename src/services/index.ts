@@ -13,6 +13,7 @@ export { buildProposal, autoDraftProposal } from "./proposal";
 export type { ProposalInput, ProposalResult } from "./proposal";
 
 export { createProposalStore } from "./persistence";
-export type { ProposalStore } from "./persistence";
+export type { ProposalStore, StatusUpdate } from "./persistence";
 
 export { formatProposal, formatProposalList } from "./format";
+export type { ResearchSummary } from "./format";

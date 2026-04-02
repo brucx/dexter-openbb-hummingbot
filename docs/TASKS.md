@@ -70,13 +70,15 @@ Concrete work items grouped by phase. Each task is small enough to be a single P
 ### CLI Display
 - [x] Format trade proposal for terminal display (`src/services/format.ts`)
 - [x] Show: asset, direction, size, thesis, confidence, risks
-- [ ] Show: relevant data points from research (price, P/E, RSI, etc.)
+- [x] Show: relevant data points from research via ResearchSummary (price, P/E, volume, etc.)
+- [x] Show: approval/rejection metadata in formatted output
 
 ### Persistence
 - [x] Save proposals to `data/proposals/{id}.json` (`src/services/persistence.ts`)
 - [x] Add `loadAll()` / `list()` to review past proposals
 - [x] Add `load(id)` to view a specific proposal
-- [ ] Add CLI commands wrapping persistence (list, show)
+- [x] Add `updateStatus()` — approve/reject proposals with metadata
+- [x] Add CLI commands wrapping persistence (`src/cli.ts`: list, show, approve, reject)
 
 ---
 
