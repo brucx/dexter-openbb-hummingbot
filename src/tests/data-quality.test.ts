@@ -4,8 +4,8 @@
  * Run with: npx tsx src/tests/data-quality.test.ts
  */
 
-import { assessDataQuality, buildProposal, autoDraftProposal } from "../services/proposal";
-import type { DataQualityAssessment } from "../services/proposal";
+import { assessDataQuality, buildProposal, autoDraftProposal, extractSignals } from "../services/proposal";
+import type { DataQualityAssessment, ResearchSignals } from "../services/proposal";
 import type { ResearchSnapshot } from "../services/research";
 
 let passed = 0;
@@ -34,14 +34,18 @@ function assert(condition: boolean, msg: string) {
 function fullLiveSnapshot(symbol = "AAPL"): ResearchSnapshot {
   return {
     symbol,
-    quote: { symbol, price: 185.5, change: 2.35, changePct: 1.28, volume: 54_321_000, isFallback: false },
+    quote: { symbol, price: 185.5, change: 2.35, changePct: 1.28, volume: 54_321_000, marketCap: 2_800_000_000_000, peRatio: 28.5, isFallback: false },
     priceHistory: {
       symbol,
-      records: [{ date: "2024-01-01", open: 180, high: 182, low: 179, close: 181, volume: 50_000_000 }],
+      records: [
+        { date: "2024-01-01", open: 170, high: 172, low: 168, close: 171, volume: 50_000_000 },
+        { date: "2024-01-15", open: 175, high: 178, low: 174, close: 177, volume: 48_000_000 },
+        { date: "2024-01-31", open: 180, high: 188, low: 179, close: 185, volume: 52_000_000 },
+      ],
       isFallback: false,
     },
-    financials: { symbol, period: "annual", incomeStatement: { revenue: 394_328_000_000 }, isFallback: false },
-    news: { symbol, articles: [{ title: "AAPL beats earnings" }], isFallback: false },
+    financials: { symbol, period: "annual", incomeStatement: { total_revenue: 394_328_000_000, net_income: 97_000_000_000, basic_eps: 6.13 }, isFallback: false },
+    news: { symbol, articles: [{ title: "AAPL beats earnings" }, { title: "Apple announces new product line" }], isFallback: false },
     errors: [],
     timestamp: new Date().toISOString(),
   };
@@ -357,10 +361,104 @@ test("dataQuality reflects mixed sources", () => {
 });
 
 // ---------------------------------------------------------------------------
-// autoDraftProposal degradation tests
+// extractSignals tests
 // ---------------------------------------------------------------------------
 
-console.log("\n=== autoDraftProposal degradation ===\n");
+console.log("\n=== extractSignals ===\n");
+
+test("extracts price signals from live quote + history", () => {
+  const signals = extractSignals(fullLiveSnapshot());
+  assert(signals.price !== null, "should have price signals");
+  assert(signals.price!.currentPrice === 185.5, `expected 185.5, got ${signals.price!.currentPrice}`);
+  assert(signals.price!.dayChangePct === 1.28, "should have day change pct");
+  assert(signals.price!.volume === 54_321_000, "should have volume");
+  assert(signals.price!.marketCap === 2_800_000_000_000, "should have market cap");
+  assert(signals.price!.peRatio === 28.5, "should have P/E ratio");
+});
+
+test("extracts range from price history", () => {
+  const signals = extractSignals(fullLiveSnapshot());
+  assert(signals.price!.rangeHigh === 188, `expected rangeHigh 188, got ${signals.price!.rangeHigh}`);
+  assert(signals.price!.rangeLow === 168, `expected rangeLow 168, got ${signals.price!.rangeLow}`);
+  assert(signals.price!.rangePosition != null, "should compute range position");
+  assert(signals.price!.rangePosition! > 0.5, "price should be in upper half of range");
+});
+
+test("detects upward trend from price history", () => {
+  const signals = extractSignals(fullLiveSnapshot());
+  assert(signals.price!.recentTrend === "up", `expected up, got ${signals.price!.recentTrend}`);
+  assert(signals.price!.periodChangePct != null, "should compute period change");
+  assert(signals.price!.periodChangePct! > 0, "period change should be positive");
+});
+
+test("detects downward trend", () => {
+  const snap = fullLiveSnapshot();
+  snap.priceHistory!.records = [
+    { date: "2024-01-01", open: 200, high: 205, low: 198, close: 200, volume: 50_000_000 },
+    { date: "2024-01-15", open: 195, high: 197, low: 190, close: 192, volume: 48_000_000 },
+    { date: "2024-01-31", open: 185, high: 187, low: 180, close: 182, volume: 52_000_000 },
+  ];
+  const signals = extractSignals(snap);
+  assert(signals.price!.recentTrend === "down", `expected down, got ${signals.price!.recentTrend}`);
+  assert(signals.price!.periodChangePct! < 0, "period change should be negative");
+});
+
+test("returns null price signals for fallback quote", () => {
+  const signals = extractSignals(allFallbackSnapshot());
+  assert(signals.price === null, "fallback data should produce null price signals");
+});
+
+test("returns null price signals for missing quote", () => {
+  const signals = extractSignals(emptySnapshot());
+  assert(signals.price === null, "missing data should produce null price signals");
+});
+
+test("extracts financial signals from live data", () => {
+  const signals = extractSignals(fullLiveSnapshot());
+  assert(signals.financials !== null, "should have financial signals");
+  assert(signals.financials!.revenue === 394_328_000_000, "should have revenue");
+  assert(signals.financials!.netIncome === 97_000_000_000, "should have net income");
+  assert(signals.financials!.eps === 6.13, "should have EPS");
+  assert(signals.financials!.profitable === true, "should be profitable");
+});
+
+test("detects unprofitable company", () => {
+  const snap = fullLiveSnapshot();
+  snap.financials!.incomeStatement = { total_revenue: 1_000_000, net_income: -500_000 };
+  const signals = extractSignals(snap);
+  assert(signals.financials!.profitable === false, "should flag as unprofitable");
+});
+
+test("returns null financials for fallback data", () => {
+  const signals = extractSignals(allFallbackSnapshot());
+  assert(signals.financials === null, "fallback financials should be null");
+});
+
+test("returns null financials for empty income statement", () => {
+  const snap = fullLiveSnapshot();
+  snap.financials!.incomeStatement = {};
+  const signals = extractSignals(snap);
+  assert(signals.financials === null, "empty income statement should produce null");
+});
+
+test("extracts news signals from live data", () => {
+  const signals = extractSignals(fullLiveSnapshot());
+  assert(signals.news !== null, "should have news signals");
+  assert(signals.news!.articleCount === 2, `expected 2 articles, got ${signals.news!.articleCount}`);
+  assert(signals.news!.headlines.length === 2, "should have 2 headlines");
+  assert(signals.news!.hasRecentNews === true, "should have recent news");
+});
+
+test("returns null news for fallback data", () => {
+  const signals = extractSignals(allFallbackSnapshot());
+  assert(signals.news === null, "fallback news should be null");
+});
+
+// ---------------------------------------------------------------------------
+// autoDraftProposal grounded content tests
+// ---------------------------------------------------------------------------
+
+console.log("\n=== autoDraftProposal grounded content ===\n");
 
 test("auto-draft with all live data stays low confidence", () => {
   const result = autoDraftProposal(fullLiveSnapshot());
@@ -369,11 +467,74 @@ test("auto-draft with all live data stays low confidence", () => {
   assert(result.dataQuality.confidenceWasCapped === false, "low can't be capped");
 });
 
-test("auto-draft with empty snapshot produces capped proposal", () => {
+test("auto-draft thesis references actual price", () => {
+  const result = autoDraftProposal(fullLiveSnapshot());
+  assert(result.intent !== null, "should produce intent");
+  assert(result.intent!.thesis.includes("185.50"), `thesis should mention price: ${result.intent!.thesis}`);
+  assert(result.intent!.thesis.includes("[AUTO-DRAFT]"), "should be marked as auto-draft");
+});
+
+test("auto-draft thesis mentions trend when history available", () => {
+  const result = autoDraftProposal(fullLiveSnapshot());
+  assert(result.intent!.thesis.includes("upward"), `thesis should mention trend: ${result.intent!.thesis}`);
+});
+
+test("auto-draft thesis mentions revenue when financials available", () => {
+  const result = autoDraftProposal(fullLiveSnapshot());
+  assert(result.intent!.thesis.includes("Revenue"), `thesis should mention revenue: ${result.intent!.thesis}`);
+});
+
+test("auto-draft factors include concrete data points", () => {
+  const result = autoDraftProposal(fullLiveSnapshot());
+  const factors = result.intent!.key_factors;
+  assert(factors.some((f) => f.includes("$185.50")), "should have current price");
+  assert(factors.some((f) => f.includes("54,321,000") || f.includes("54321000")), "should have volume");
+  assert(factors.some((f) => f.includes("$2.80T") || f.includes("market cap")), "should have market cap");
+  assert(factors.some((f) => f.includes("28.5")), "should have P/E ratio");
+  assert(factors.some((f) => f.includes("30-day range")), "should have price range");
+  assert(factors.some((f) => f.includes("Upward")), "should have trend");
+});
+
+test("auto-draft factors include financial data points", () => {
+  const result = autoDraftProposal(fullLiveSnapshot());
+  const factors = result.intent!.key_factors;
+  assert(factors.some((f) => f.includes("Revenue")), "should have revenue");
+  assert(factors.some((f) => f.includes("Net income")), "should have net income");
+  assert(factors.some((f) => f.includes("EPS")), "should have EPS");
+});
+
+test("auto-draft factors include news coverage", () => {
+  const result = autoDraftProposal(fullLiveSnapshot());
+  const factors = result.intent!.key_factors;
+  assert(factors.some((f) => f.includes("article")), "should mention article count");
+  assert(factors.some((f) => f.includes("AAPL beats earnings")), "should include top headline");
+});
+
+test("auto-draft factors include data source transparency", () => {
+  const result = autoDraftProposal(fullLiveSnapshot());
+  const factors = result.intent!.key_factors;
+  assert(factors.some((f) => f.includes("Live data sources")), "should list data sources used");
+});
+
+test("auto-draft risks include human-review warning", () => {
+  const result = autoDraftProposal(fullLiveSnapshot());
+  assert(result.intent!.key_risks.some((r) => r.includes("human review")), "should warn about auto-generated draft");
+});
+
+test("auto-draft with empty snapshot has cautious thesis", () => {
   const result = autoDraftProposal(emptySnapshot());
   assert(result.intent !== null, "should produce intent");
   assert(result.intent!.confidence === "low", "should be low");
-  assert(result.intent!.key_risks.some((r) => r.includes("No price data")), "should warn about missing data");
+  assert(result.intent!.thesis.includes("Insufficient"), `thesis should be cautious: ${result.intent!.thesis}`);
+  assert(result.intent!.key_risks.some((r) => r.includes("No live price data")), "should warn about missing price data");
+});
+
+test("auto-draft with empty snapshot risks mention missing data sources", () => {
+  const result = autoDraftProposal(emptySnapshot());
+  const risks = result.intent!.key_risks;
+  assert(risks.some((r) => r.includes("No live price data")), "should warn about missing price");
+  assert(risks.some((r) => r.includes("No live financial data")), "should warn about missing financials");
+  assert(risks.some((r) => r.includes("No live news data")), "should warn about missing news");
 });
 
 test("auto-draft with fallback data includes sample warnings via dataQuality", () => {
@@ -388,6 +549,43 @@ test("auto-draft override to high confidence is capped with fallback", () => {
   assert(result.intent !== null, "should produce intent");
   assert(result.intent!.confidence === "medium", `expected medium, got ${result.intent!.confidence}`);
   assert(result.dataQuality.confidenceWasCapped === true, "should be capped");
+});
+
+test("auto-draft with downward trend flags risk", () => {
+  const snap = fullLiveSnapshot();
+  snap.priceHistory!.records = [
+    { date: "2024-01-01", open: 200, high: 205, low: 198, close: 200, volume: 50_000_000 },
+    { date: "2024-01-15", open: 195, high: 197, low: 190, close: 192, volume: 48_000_000 },
+    { date: "2024-01-31", open: 185, high: 187, low: 180, close: 182, volume: 52_000_000 },
+  ];
+  const result = autoDraftProposal(snap);
+  assert(result.intent!.key_risks.some((r) => r.includes("downward")), "should flag downward trend risk");
+});
+
+test("auto-draft with high P/E flags risk", () => {
+  const snap = fullLiveSnapshot();
+  snap.quote!.peRatio = 75;
+  const result = autoDraftProposal(snap);
+  assert(result.intent!.key_risks.some((r) => r.includes("P/E")), "should flag high P/E risk");
+});
+
+test("auto-draft with unprofitable company flags risk", () => {
+  const snap = fullLiveSnapshot();
+  snap.financials!.incomeStatement = { total_revenue: 1_000_000, net_income: -500_000 };
+  const result = autoDraftProposal(snap);
+  assert(result.intent!.key_risks.some((r) => r.includes("unprofitable")), "should flag unprofitable company");
+  assert(result.intent!.thesis.includes("not currently profitable"), `thesis should mention unprofitability: ${result.intent!.thesis}`);
+});
+
+test("auto-draft with partial data (quote only) is cautious but informative", () => {
+  const snap = partialSnapshot();
+  const result = autoDraftProposal(snap);
+  assert(result.intent !== null, "should produce intent");
+  // Has quote data, so thesis should mention price
+  assert(result.intent!.thesis.includes("185.50"), `should reference price: ${result.intent!.thesis}`);
+  // Missing financials/history/news — risks should reflect that
+  assert(result.intent!.key_risks.some((r) => r.includes("No live financial data")), "should warn about missing financials");
+  assert(result.intent!.key_risks.some((r) => r.includes("No live news data")), "should warn about missing news");
 });
 
 // ---------------------------------------------------------------------------

@@ -67,7 +67,8 @@ Concrete work items grouped by phase. Each task is small enough to be a single P
 - [x] Add `analyze <SYMBOL>` CLI command to `src/cli.ts`
 - [x] Write workflow spec document (`docs/WORKFLOW.md`)
 - [x] Add workflow tests (`src/tests/workflow.test.ts`)
-- [ ] Replace auto-draft heuristics with agent-driven analysis logic (future)
+- [x] Grounded proposal content: signal extraction + data-driven thesis/factors/risks (Phase 2.9)
+- [ ] Agent-driven analysis: replace heuristic thesis with LLM-synthesized reasoning (future)
 - [ ] Register as Dexter skill when skill discovery is available (future)
 
 ### CLI Display

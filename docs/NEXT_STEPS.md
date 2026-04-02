@@ -75,8 +75,34 @@ pipeline, replacing the ad-hoc demo script with a proper workflow command.
 - [x] Workflow tests
 - [x] Updated npm scripts (`test:workflow`, `test:all`)
 
+## Phase 2.9: Proposal Content Quality — COMPLETE
+
+Goal: Make auto-draft proposals noticeably more useful by grounding thesis, factors,
+and risks in actual research data instead of generic placeholders.
+
+- [x] `extractSignals()` — mine concrete observations from ResearchSnapshot
+  - Price signals: current price, day change, 30-day range, range position, trend direction, period change %
+  - Financial signals: revenue, net income, EPS, profitability flag
+  - News signals: article count, top headlines, recency
+- [x] Grounded thesis generation — references actual price, trend, revenue, profitability
+  - Cautious when data is thin: "Insufficient live data" instead of generic filler
+  - Always marked [AUTO-DRAFT] — never pretends to be real analysis
+- [x] Grounded key_factors — concrete data points (price, volume, market cap, P/E, range, trend, financials, news headlines)
+  - Includes transparent "Live data sources used" note
+- [x] Grounded key_risks — specific to observed data
+  - Downward trend flagged when detected
+  - High P/E flagged (>40)
+  - Negative P/E flagged
+  - Unprofitability flagged from financials
+  - Missing data sources flagged individually
+- [x] Fallback/sample data treated as absent for signal extraction (honest, not misleading)
+- [x] Signal extraction tests (12 tests) + grounded content tests (17 tests) = 57 total data-quality tests
+- [x] Full test suite passes (245 tests)
+
 ## Next Implementation Target
 
 - [ ] Emit `trade_proposal` event for Dexter event stream integration
 - [ ] Phase 3: Hummingbot paper trading bridge (when ready)
-- [ ] Replace auto-draft heuristics with agent-driven analysis logic
+- [ ] Agent-driven analysis: replace heuristic thesis with LLM-synthesized reasoning
+- [ ] Deeper financial analysis: multi-period comparison, margin trends, debt ratios
+- [ ] Technical indicators: moving averages, RSI, volume patterns from price history

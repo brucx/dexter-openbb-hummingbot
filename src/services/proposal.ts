@@ -282,22 +282,311 @@ export function buildProposal(input: ProposalInput): ProposalResult {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Signal extraction — mine concrete observations from research data
+// ---------------------------------------------------------------------------
+
+/** Extracted price signals from quote + price history. */
+export interface PriceSignals {
+  currentPrice: number;
+  dayChange: number;
+  dayChangePct: number;
+  volume: number;
+  marketCap?: number;
+  peRatio?: number;
+  /** 30-day high/low from price history, if available */
+  rangeHigh?: number;
+  rangeLow?: number;
+  /** Where current price sits in the 30-day range (0 = at low, 1 = at high) */
+  rangePosition?: number;
+  /** Simple trend: "up", "down", or "flat" based on first vs last close */
+  recentTrend?: "up" | "down" | "flat";
+  /** Percentage change over the history period */
+  periodChangePct?: number;
+}
+
+/** Extracted financial signals. */
+export interface FinancialSignals {
+  revenue?: number;
+  netIncome?: number;
+  eps?: number;
+  /** Whether the company appears profitable based on net income */
+  profitable?: boolean;
+}
+
+/** Extracted news signals. */
+export interface NewsSignals {
+  articleCount: number;
+  headlines: string[];
+  hasRecentNews: boolean;
+}
+
+/** All signals extracted from a research snapshot. */
+export interface ResearchSignals {
+  price: PriceSignals | null;
+  financials: FinancialSignals | null;
+  news: NewsSignals | null;
+}
+
 /**
- * Auto-generate a simple proposal from a research snapshot.
+ * Extract concrete, observable signals from research data.
+ * No interpretation — just structured observations a human could verify.
+ */
+export function extractSignals(research: ResearchSnapshot): ResearchSignals {
+  return {
+    price: extractPriceSignals(research),
+    financials: extractFinancialSignals(research),
+    news: extractNewsSignals(research),
+  };
+}
+
+function extractPriceSignals(research: ResearchSnapshot): PriceSignals | null {
+  if (!research.quote || research.quote.isFallback) return null;
+  const q = research.quote;
+  const signals: PriceSignals = {
+    currentPrice: q.price,
+    dayChange: q.change,
+    dayChangePct: q.changePct,
+    volume: q.volume,
+    marketCap: q.marketCap,
+    peRatio: q.peRatio,
+  };
+
+  // Mine price history for range and trend
+  const history = research.priceHistory;
+  if (history && !history.isFallback && history.records.length >= 2) {
+    const closes = history.records.map((r) => r.close);
+    const highs = history.records.map((r) => r.high);
+    const lows = history.records.map((r) => r.low);
+
+    signals.rangeHigh = Math.max(...highs);
+    signals.rangeLow = Math.min(...lows);
+
+    if (signals.rangeHigh > signals.rangeLow) {
+      signals.rangePosition =
+        (q.price - signals.rangeLow) / (signals.rangeHigh - signals.rangeLow);
+    }
+
+    const firstClose = closes[0]!;
+    const lastClose = closes[closes.length - 1]!;
+    const changePct = ((lastClose - firstClose) / firstClose) * 100;
+    signals.periodChangePct = Math.round(changePct * 100) / 100;
+
+    if (changePct > 1) signals.recentTrend = "up";
+    else if (changePct < -1) signals.recentTrend = "down";
+    else signals.recentTrend = "flat";
+  }
+
+  return signals;
+}
+
+function extractFinancialSignals(research: ResearchSnapshot): FinancialSignals | null {
+  if (!research.financials || research.financials.isFallback) return null;
+  const inc = research.financials.incomeStatement;
+  if (!inc || Object.keys(inc).length === 0) return null;
+
+  const revenue = toNumber(inc.total_revenue ?? inc.revenue);
+  const netIncome = toNumber(inc.net_income);
+  const eps = toNumber(inc.basic_eps ?? inc.eps ?? inc.earnings_per_share);
+
+  // Only return if we found at least one meaningful field
+  if (revenue == null && netIncome == null && eps == null) return null;
+
+  return {
+    revenue: revenue ?? undefined,
+    netIncome: netIncome ?? undefined,
+    eps: eps ?? undefined,
+    profitable: netIncome != null ? netIncome > 0 : undefined,
+  };
+}
+
+function extractNewsSignals(research: ResearchSnapshot): NewsSignals | null {
+  if (!research.news || research.news.isFallback) return null;
+  const articles = research.news.articles;
+  return {
+    articleCount: articles.length,
+    headlines: articles.slice(0, 3).map((a) => a.title).filter(Boolean),
+    hasRecentNews: articles.length > 0,
+  };
+}
+
+function toNumber(v: unknown): number | null {
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+// ---------------------------------------------------------------------------
+// Grounded content generation — build thesis/factors/risks from signals
+// ---------------------------------------------------------------------------
+
+function formatLargeNumber(n: number): string {
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000_000_000) return `$${(n / 1_000_000_000_000).toFixed(2)}T`;
+  if (abs >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
+  if (abs >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+  return `$${n.toFixed(2)}`;
+}
+
+function buildGroundedThesis(symbol: string, signals: ResearchSignals): string {
+  const parts: string[] = [];
+
+  if (signals.price) {
+    const p = signals.price;
+    parts.push(`${symbol} is trading at $${p.currentPrice.toFixed(2)}`);
+
+    if (p.recentTrend && p.periodChangePct != null) {
+      const trendWord = p.recentTrend === "up" ? "upward" : p.recentTrend === "down" ? "downward" : "sideways";
+      parts.push(`with a ${trendWord} trend over the observed period (${p.periodChangePct > 0 ? "+" : ""}${p.periodChangePct}%)`);
+    }
+
+    if (p.rangeHigh != null && p.rangeLow != null) {
+      parts.push(`within a $${p.rangeLow.toFixed(2)}–$${p.rangeHigh.toFixed(2)} range`);
+    }
+  } else {
+    parts.push(`${symbol} — limited price data available`);
+  }
+
+  if (signals.financials) {
+    const f = signals.financials;
+    if (f.revenue != null) {
+      parts.push(`Revenue: ${formatLargeNumber(f.revenue)}`);
+    }
+    if (f.profitable != null) {
+      parts.push(f.profitable ? "company appears profitable" : "company is not currently profitable");
+    }
+  }
+
+  if (!signals.price && !signals.financials) {
+    return `[AUTO-DRAFT] Insufficient live data for ${symbol}. This proposal is a placeholder pending better data.`;
+  }
+
+  return `[AUTO-DRAFT] ${parts.join(". ")}. This is a heuristic draft based on observed data — not a recommendation.`;
+}
+
+function buildGroundedFactors(signals: ResearchSignals): string[] {
+  const factors: string[] = [];
+
+  if (signals.price) {
+    const p = signals.price;
+    factors.push(`Current price: $${p.currentPrice.toFixed(2)} (${p.dayChangePct >= 0 ? "+" : ""}${p.dayChangePct.toFixed(2)}% today)`);
+
+    if (p.volume > 0) {
+      factors.push(`Volume: ${p.volume.toLocaleString()}`);
+    }
+
+    if (p.marketCap != null) {
+      factors.push(`Market cap: ${formatLargeNumber(p.marketCap)}`);
+    }
+
+    if (p.peRatio != null) {
+      factors.push(`P/E ratio: ${p.peRatio.toFixed(1)}`);
+    }
+
+    if (p.rangeHigh != null && p.rangeLow != null && p.rangePosition != null) {
+      const posLabel =
+        p.rangePosition > 0.8 ? "near the high" :
+        p.rangePosition < 0.2 ? "near the low" :
+        "mid-range";
+      factors.push(`30-day range: $${p.rangeLow.toFixed(2)}–$${p.rangeHigh.toFixed(2)} (currently ${posLabel})`);
+    }
+
+    if (p.recentTrend) {
+      const trendDesc =
+        p.recentTrend === "up" ? "Upward" :
+        p.recentTrend === "down" ? "Downward" : "Sideways";
+      factors.push(`Recent trend: ${trendDesc}${p.periodChangePct != null ? ` (${p.periodChangePct > 0 ? "+" : ""}${p.periodChangePct}% over period)` : ""}`);
+    }
+  }
+
+  if (signals.financials) {
+    const f = signals.financials;
+    if (f.revenue != null) factors.push(`Revenue: ${formatLargeNumber(f.revenue)}`);
+    if (f.netIncome != null) factors.push(`Net income: ${formatLargeNumber(f.netIncome)}`);
+    if (f.eps != null) factors.push(`EPS: $${f.eps.toFixed(2)}`);
+  }
+
+  if (signals.news) {
+    if (signals.news.articleCount > 0) {
+      factors.push(`News coverage: ${signals.news.articleCount} recent article(s)`);
+      if (signals.news.headlines.length > 0) {
+        factors.push(`Top headline: "${signals.news.headlines[0]}"`);
+      }
+    } else {
+      factors.push("No recent news coverage found");
+    }
+  }
+
+  // Always include honest data-availability note
+  const available: string[] = [];
+  if (signals.price) available.push("price");
+  if (signals.price?.rangeHigh != null) available.push("history");
+  if (signals.financials) available.push("financials");
+  if (signals.news) available.push("news");
+  factors.push(`Live data sources used: ${available.length > 0 ? available.join(", ") : "none"}`);
+
+  return factors;
+}
+
+function buildGroundedRisks(signals: ResearchSignals): string[] {
+  const risks: string[] = [
+    "Auto-generated draft — no deep analysis performed, human review required",
+  ];
+
+  if (signals.price) {
+    const p = signals.price;
+    if (p.recentTrend === "down") {
+      risks.push(`Price is in a downward trend (${p.periodChangePct}% over observed period)`);
+    }
+    if (p.rangePosition != null && p.rangePosition > 0.9) {
+      risks.push("Price is near 30-day high — limited upside if range-bound");
+    }
+    if (p.peRatio != null && p.peRatio > 40) {
+      risks.push(`Elevated P/E ratio (${p.peRatio.toFixed(1)}) — may reflect high expectations`);
+    }
+    if (p.peRatio != null && p.peRatio < 0) {
+      risks.push("Negative P/E ratio — company may not be profitable");
+    }
+  }
+
+  if (signals.financials?.profitable === false) {
+    risks.push("Company appears unprofitable based on most recent financials");
+  }
+
+  if (!signals.price) {
+    risks.push("No live price data — all price levels in this proposal are placeholders");
+  }
+  if (!signals.financials) {
+    risks.push("No live financial data — fundamental picture unknown");
+  }
+  if (!signals.news) {
+    risks.push("No live news data — event risk and sentiment not assessed");
+  }
+
+  return risks;
+}
+
+// ---------------------------------------------------------------------------
+// autoDraftProposal — now grounded in research signals
+// ---------------------------------------------------------------------------
+
+/**
+ * Auto-generate a proposal from a research snapshot, grounded in observed data.
  *
- * This is a convenience function for demo/testing — it fills in reasonable
- * defaults so you can see the full pipeline without manually specifying every field.
+ * Extracts concrete signals from quote, price history, financials, and news,
+ * then builds thesis/factors/risks that reference actual data points.
  *
- * CLEARLY MARKED: this is not real investment logic.
+ * Still clearly marked as auto-draft — this is heuristic, not real analysis.
+ * When data is thin, the output is cautious and says so explicitly.
  */
 export function autoDraftProposal(
   research: ResearchSnapshot,
   overrides: Partial<ProposalInput> = {},
 ): ProposalResult {
-  const price = research.quote?.price ?? 100;
-  const risks: string[] = [
-    "This is an auto-generated draft — no real analysis was performed",
-  ];
+  const signals = extractSignals(research);
+  const price = signals.price?.currentPrice ?? research.quote?.price ?? 100;
+
   const defaults: ProposalInput = {
     research,
     direction: "long",
@@ -308,13 +597,10 @@ export function autoDraftProposal(
     takeProfit: Math.round(price * 1.10 * 100) / 100, // 10% target
     timeHorizon: "1w",
     maxPositionPct: 2,
-    thesis: `[AUTO-DRAFT — not real analysis] Based on research snapshot for ${research.symbol}.`,
+    thesis: buildGroundedThesis(research.symbol, signals),
     confidence: "low",
-    keyFactors: [
-      `Current price: $${price}`,
-      `Research data available: quote=${!!research.quote}, history=${!!research.priceHistory}, financials=${!!research.financials}, news=${!!research.news}`,
-    ],
-    keyRisks: risks,
+    keyFactors: buildGroundedFactors(signals),
+    keyRisks: buildGroundedRisks(signals),
     ...overrides,
   };
 
