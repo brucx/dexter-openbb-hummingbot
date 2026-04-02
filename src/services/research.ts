@@ -79,6 +79,17 @@ export interface ResearchSnapshot {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** If value is an array (live bridge returns a list of records), take the first element. */
+function unwrapFirst(value: unknown): Record<string, unknown> | undefined {
+  if (Array.isArray(value)) return (value[0] as Record<string, unknown>) ?? undefined;
+  if (value && typeof value === "object") return value as Record<string, unknown>;
+  return undefined;
+}
+
+// ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
 
@@ -162,8 +173,8 @@ export class ResearchService {
     return {
       symbol,
       period: (d.period as string) ?? period,
-      incomeStatement: (d.income_statement as Record<string, unknown>) ?? {},
-      balanceSheet: d.balance_sheet as Record<string, unknown> | undefined,
+      incomeStatement: unwrapFirst(d.income_statement) ?? {},
+      balanceSheet: unwrapFirst(d.balance_sheet),
       isFallback: Boolean(d._fallback),
     };
   }

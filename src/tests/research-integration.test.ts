@@ -46,6 +46,7 @@ try {
 
   const financials = await service.getFinancials("AAPL");
   assert(Object.keys(financials.incomeStatement).length > 0, "financials returns income statement");
+  assert(typeof financials.incomeStatement.revenue === "number", "income statement has numeric revenue");
   assert(financials.isFallback === true, "financials is flagged as fallback");
 
   const news = await service.getNews("AAPL", 3);
