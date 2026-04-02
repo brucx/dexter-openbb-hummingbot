@@ -7,6 +7,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "npx tsx src/tests/validate-trade-intent.test.ts",
+    "test:integration": "npx tsx src/tests/research-integration.test.ts",
+    "test:all": "npx tsx src/tests/validate-trade-intent.test.ts && npx tsx src/tests/research-integration.test.ts && npx tsx src/tests/persistence-format.test.ts",
     "demo": "npx tsx examples/research-demo.ts",
     "demo:bridge": "npx tsx examples/bridge-test.ts"
   },

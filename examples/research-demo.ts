@@ -17,6 +17,8 @@
 
 import { ResearchService } from "../src/services/research";
 import { autoDraftProposal } from "../src/services/proposal";
+import { createProposalStore } from "../src/services/persistence";
+import { formatProposal, formatProposalList } from "../src/services/format";
 
 const symbol = process.argv[2] ?? "AAPL";
 
@@ -85,27 +87,26 @@ try {
   }
 
   // -- Proposal --
-  console.log(`\n2. Generating draft trade proposal...`);
+  console.log(`\n2. Generating draft trade proposal...\n`);
   const result = autoDraftProposal(snapshot);
 
   if (result.intent) {
-    const i = result.intent;
-    console.log(`\n--- Draft TradeIntent ---`);
-    console.log(`  ID:         ${i.id}`);
-    console.log(`  Asset:      ${i.asset}`);
-    console.log(`  Direction:  ${i.direction}`);
-    console.log(`  Order:      ${i.order_type} @ $${i.limit_price ?? "market"}`);
-    console.log(`  Quantity:   ${i.quantity}`);
-    console.log(`  Stop Loss:  $${i.stop_loss}`);
-    console.log(`  Take Profit:$${i.take_profit}`);
-    console.log(`  Horizon:    ${i.time_horizon}`);
-    console.log(`  Confidence: ${i.confidence}`);
-    console.log(`  Status:     ${i.status}`);
-    console.log(`  Thesis:     ${i.thesis}`);
+    console.log(formatProposal(result.intent));
+
     if (result.usedFallbackData) {
       console.log(`\n  ⚠ This proposal is based on FALLBACK data, not live market data.`);
     }
     console.log(`\n  This is a PROPOSAL ONLY. No trade has been or will be executed.`);
+
+    // -- Persist --
+    console.log(`\n3. Saving proposal to disk...`);
+    const store = createProposalStore();
+    const path = store.save(result.intent);
+    console.log(`  Saved: ${path}`);
+
+    const all = store.loadAll();
+    console.log(`\n--- Saved Proposals (${all.length} total) ---`);
+    console.log(formatProposalList(all));
   } else {
     console.log(`\n  ✗ Proposal failed validation:`);
     for (const e of result.errors) {

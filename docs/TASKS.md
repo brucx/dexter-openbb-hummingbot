@@ -30,7 +30,7 @@ Concrete work items grouped by phase. Each task is small enough to be a single P
 - [x] Implement `news` handler — calls `obb.news.world()`
 - [x] Add error handling and timeout management
 - [x] Add deterministic fallback mode when OpenBB SDK is not installed
-- [ ] Write `requirements.txt` for bridge dependencies (openbb, etc.)
+- [x] Write `requirements.txt` for bridge dependencies (openbb, etc.)
 - [x] Manual test: send JSON requests via stdin, verify responses (`examples/bridge-test.ts`)
 
 ### Dexter Tools (TypeScript side)
@@ -46,6 +46,8 @@ Concrete work items grouped by phase. Each task is small enough to be a single P
 - [x] Bridge protocol test: `examples/bridge-test.ts`
 - [x] End-to-end research → proposal demo: `examples/research-demo.ts`
 - [x] Unit tests for validation and proposal building: `src/tests/validate-trade-intent.test.ts`
+- [x] Integration test: bridge → service → proposal pipeline: `src/tests/research-integration.test.ts`
+- [x] Persistence and formatting tests: `src/tests/persistence-format.test.ts`
 - [ ] Test with multiple providers (yfinance, then FMP if API key available)
 - [ ] Test error paths: invalid symbol, provider down, timeout
 
@@ -57,7 +59,7 @@ Concrete work items grouped by phase. Each task is small enough to be a single P
 - [x] Write `buildProposal()` — shapes research + parameters into validated TradeIntent (`src/services/proposal.ts`)
 - [x] Write `autoDraftProposal()` — convenience auto-draft for demo/testing
 - [x] Validate TradeIntent against schema (required fields, value ranges)
-- [ ] Write proposal to disk as JSON file in `data/proposals/`
+- [x] Write proposal to disk as JSON file in `data/proposals/` (`src/services/persistence.ts`)
 - [ ] Emit `trade_proposal` event in Dexter's event stream
 
 ### Trade Analysis Skill
@@ -66,14 +68,15 @@ Concrete work items grouped by phase. Each task is small enough to be a single P
 - [ ] Register skill in Dexter's skill discovery
 
 ### CLI Display
-- [ ] Format trade proposal for terminal display (Ink component)
-- [ ] Show: asset, direction, size, thesis, confidence, risks
+- [x] Format trade proposal for terminal display (`src/services/format.ts`)
+- [x] Show: asset, direction, size, thesis, confidence, risks
 - [ ] Show: relevant data points from research (price, P/E, RSI, etc.)
 
 ### Persistence
-- [ ] Save proposals to `data/proposals/{id}.json`
-- [ ] Add `list_proposals` command to review past proposals
-- [ ] Add `show_proposal` command to view a specific proposal
+- [x] Save proposals to `data/proposals/{id}.json` (`src/services/persistence.ts`)
+- [x] Add `loadAll()` / `list()` to review past proposals
+- [x] Add `load(id)` to view a specific proposal
+- [ ] Add CLI commands wrapping persistence (list, show)
 
 ---
 

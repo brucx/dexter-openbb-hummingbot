@@ -62,23 +62,24 @@ This project will **not**:
 
 ## Project status
 
-**Phase 1 complete, early Phase 2 complete.** The read-only OpenBB research bridge and proposal builder are working.
+**Phase 1 complete. Phase 2 core complete.** The full research-to-proposal pipeline works end-to-end, including persistence and CLI formatting.
 
-See [docs/PLAN.md](docs/PLAN.md) for the full roadmap.
+See [docs/PLAN.md](docs/PLAN.md) for the full roadmap and [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md) for current status.
 
-### What works now
+### What works now (end-to-end)
 
 - **OpenBB bridge** (`src/bridge/openbb_bridge.py`) — JSON Lines stdin/stdout protocol with 4 methods: `quote`, `price_history`, `financials`, `news`. Auto-detects OpenBB SDK; falls back to deterministic sample data if not installed.
 - **Bridge client** (`src/bridge/bridge-client.ts`) — TypeScript process manager with request/response correlation, timeouts, and diagnostics.
 - **Research service** (`src/services/research.ts`) — High-level API: `getQuote()`, `getPriceHistory()`, `getFinancials()`, `getNews()`, and `research()` (parallel snapshot). All responses normalized into typed interfaces.
 - **Proposal builder** (`src/services/proposal.ts`) — `buildProposal()` validates and shapes research + parameters into a TradeIntent. `autoDraftProposal()` for quick demos.
-- **Tests** — `npm test` runs validation and proposal unit tests (no external deps).
+- **Proposal persistence** (`src/services/persistence.ts`) — Save, load, and list proposals as JSON files in `data/proposals/`.
+- **CLI formatting** (`src/services/format.ts`) — `formatProposal()` for rich terminal display, `formatProposalList()` for summary tables.
+- **Tests** — 70 tests across 3 suites: unit, integration, and persistence/format. Run with `npm run test:all`.
 
 ### What remains stubbed
 
 - **OpenBB methods**: `technicals`, `estimates`, `screen`, `macro` return stub responses.
 - **LangChain tool wrappers**: The research service is ready but not yet wrapped as LangChain StructuredTools.
-- **Proposal persistence**: Proposals are not yet saved to disk.
 - **Hummingbot bridge**: Placeholder only (Phase 3).
 - **Human approval gate**: Not yet built (Phase 3).
 - **Safety engine**: Types and basic checks exist; full integration pending (Phase 4).
@@ -94,8 +95,11 @@ Prerequisites:
 # Install dependencies
 npm install
 
-# Run the unit tests
+# Run unit tests
 npm test
+
+# Run all tests (unit + integration + persistence/format)
+npm run test:all
 
 # Run the research demo (uses fallback data — no API keys needed)
 npm run demo
