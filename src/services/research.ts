@@ -89,7 +89,7 @@ export class ResearchService {
   constructor(options?: { bridgePath?: string; pythonBin?: string; env?: Record<string, string> }) {
     this.client = new BridgeClient({
       scriptPath: options?.bridgePath ?? DEFAULT_BRIDGE_PATH,
-      pythonBin: options?.pythonBin,
+      pythonBin: options?.pythonBin ?? process.env.OPENBB_PYTHON_BIN,
       env: options?.env,
     });
   }

@@ -7,6 +7,7 @@
  *
  * Environment:
  *   OPENBB_BRIDGE_MODE=auto|live|fallback  (default: auto)
+ *   OPENBB_PYTHON_BIN=<path>               Python interpreter (default: python3)
  *
  * Sends individual JSON Lines requests to the Python bridge and prints responses.
  * Useful for verifying the bridge works before running the full research pipeline.
@@ -22,7 +23,10 @@ const bridgePath = join(__dirname, "..", "src", "bridge", "openbb_bridge.py");
 
 async function main() {
   const bridgeMode = process.env.OPENBB_BRIDGE_MODE ?? "auto";
-  console.log(`=== OpenBB Bridge Protocol Test (${bridgeMode} mode) ===\n`);
+  const pythonBin = process.env.OPENBB_PYTHON_BIN;
+  console.log(`=== OpenBB Bridge Protocol Test (${bridgeMode} mode) ===`);
+  if (pythonBin) console.log(`Python: ${pythonBin}`);
+  console.log();
 
   const env: Record<string, string> = {};
   if (bridgeMode !== "auto") {
@@ -31,6 +35,7 @@ async function main() {
 
   const client = new BridgeClient({
     scriptPath: bridgePath,
+    pythonBin,
     env,
   });
 

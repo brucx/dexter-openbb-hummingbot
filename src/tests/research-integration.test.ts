@@ -158,6 +158,41 @@ try {
     autoService.stop();
   }
 
+  // ---- OPENBB_PYTHON_BIN test -----------------------------------------------
+
+  console.log("\n=== OPENBB_PYTHON_BIN support ===\n");
+
+  // Explicit pythonBin option should override the default
+  {
+    const customService = new ResearchService({
+      pythonBin: "python3", // explicit, same as default — just verify it's accepted
+      env: { OPENBB_BRIDGE_MODE: "fallback" },
+    });
+    customService.start();
+    await new Promise((r) => setTimeout(r, 500));
+    const q = await customService.getQuote("AAPL");
+    assert(q.price > 0, "explicit pythonBin option works");
+    customService.stop();
+  }
+
+  // Bad pythonBin should cause the bridge to fail
+  {
+    const badService = new ResearchService({
+      pythonBin: "/nonexistent/python3",
+      env: { OPENBB_BRIDGE_MODE: "fallback" },
+    });
+    badService.start();
+    await new Promise((r) => setTimeout(r, 500));
+    try {
+      await badService.getQuote("AAPL");
+      assert(false, "bad pythonBin should fail");
+    } catch {
+      assert(true, "bad pythonBin rejects correctly");
+    } finally {
+      badService.stop();
+    }
+  }
+
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
 } finally {
   service.stop();

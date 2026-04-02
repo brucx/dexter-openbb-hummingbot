@@ -9,12 +9,17 @@
  *   OPENBB_BRIDGE_MODE=auto      (default) try live OpenBB, fall back to sample data
  *   OPENBB_BRIDGE_MODE=live      require live OpenBB (fails if SDK missing)
  *   OPENBB_BRIDGE_MODE=fallback  force deterministic sample data
+ *   OPENBB_PYTHON_BIN            path to the Python interpreter with OpenBB installed
+ *                                 (default: "python3")
  *
  * Examples:
  *   npx tsx examples/research-demo.ts                          # auto mode, AAPL
  *   npx tsx examples/research-demo.ts MSFT                     # auto mode, MSFT
  *   OPENBB_BRIDGE_MODE=fallback npx tsx examples/research-demo.ts  # force fallback
  *   OPENBB_BRIDGE_MODE=live npx tsx examples/research-demo.ts      # force live
+ *
+ *   # Use a repo-local virtualenv with OpenBB installed:
+ *   OPENBB_PYTHON_BIN=.venv-openbb/bin/python3 OPENBB_BRIDGE_MODE=live npx tsx examples/research-demo.ts
  *
  * No real trades are made. No real money is involved.
  */
@@ -26,10 +31,13 @@ import { formatProposal, formatProposalList } from "../src/services/format";
 
 const symbol = process.argv[2] ?? "AAPL";
 const bridgeMode = process.env.OPENBB_BRIDGE_MODE ?? "auto";
+const pythonBin = process.env.OPENBB_PYTHON_BIN;
 
 console.log(`\n=== Dexter Research Demo ===`);
 console.log(`Symbol: ${symbol}`);
-console.log(`Bridge mode: ${bridgeMode}\n`);
+console.log(`Bridge mode: ${bridgeMode}`);
+if (pythonBin) console.log(`Python:      ${pythonBin}`);
+console.log();
 
 const env: Record<string, string> = {};
 if (bridgeMode !== "auto") {
@@ -38,7 +46,7 @@ if (bridgeMode !== "auto") {
 // In "auto" mode we don't set the env var, so the Python bridge
 // will try to import OpenBB and fall back gracefully if unavailable.
 
-const service = new ResearchService({ env });
+const service = new ResearchService({ pythonBin, env });
 
 try {
   service.start();

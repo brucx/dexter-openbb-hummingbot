@@ -62,6 +62,15 @@ export class BridgeClient {
       if (this.stderrLines.length > 50) this.stderrLines.shift();
     });
 
+    this.process.on("error", (err) => {
+      this._ready = false;
+      for (const [id, entry] of this.pending) {
+        clearTimeout(entry.timer);
+        entry.reject(new Error(`Bridge spawn error: ${err.message}`));
+        this.pending.delete(id);
+      }
+    });
+
     this.process.on("exit", (code) => {
       this._ready = false;
       // Reject all pending requests

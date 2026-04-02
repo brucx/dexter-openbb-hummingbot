@@ -104,7 +104,7 @@ npm run test:all
 # Run the research demo (auto mode: uses live OpenBB if installed, falls back to sample data)
 npm run demo
 
-# Force live mode (requires `pip install openbb` — fails if SDK missing)
+# Force live mode (requires OpenBB SDK — fails if not installed)
 npm run demo:live
 
 # Force fallback mode (deterministic sample data, no dependencies)
@@ -115,6 +115,9 @@ npx tsx examples/research-demo.ts MSFT
 
 # Run the low-level bridge protocol test
 npm run demo:bridge
+
+# Use a repo-local virtualenv for live mode
+OPENBB_PYTHON_BIN=.venv-openbb/bin/python3 npm run demo:live
 ```
 
 ### Bridge modes
@@ -127,9 +130,24 @@ The OpenBB bridge supports three modes, controlled by the `OPENBB_BRIDGE_MODE` e
 | **Live** | `live` | Requires OpenBB SDK; exits with error if not installed |
 | **Fallback** | `fallback` | Always uses deterministic sample data — no external dependencies needed |
 
+### Python interpreter
+
+By default the bridge spawns `python3`. If OpenBB is installed in a virtualenv (common), set `OPENBB_PYTHON_BIN` to point at the correct interpreter:
+
+```bash
+# Repo-local virtualenv
+export OPENBB_PYTHON_BIN=.venv-openbb/bin/python3
+
+# Or use an absolute path
+export OPENBB_PYTHON_BIN=/home/user/envs/openbb/bin/python3
+```
+
+This is respected by `ResearchService`, both demo scripts, and the npm `demo:live` script.
+
 **Prerequisites for live mode:**
 - Python 3.10+
 - `pip install openbb` (and any provider extensions you need, e.g. `openbb[yfinance]`)
+- The `OPENBB_PYTHON_BIN` env var pointing at the interpreter where OpenBB is installed (if not the system `python3`)
 - API keys configured per OpenBB docs (some providers like Yahoo Finance work without keys)
 
 ## Documentation
