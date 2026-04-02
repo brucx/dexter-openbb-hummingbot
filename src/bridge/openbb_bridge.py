@@ -28,6 +28,24 @@ log = logging.getLogger(__name__)
 OPENBB_AVAILABLE = False
 obb = None
 
+# ---------------------------------------------------------------------------
+# Credential env-var normalization
+# ---------------------------------------------------------------------------
+# OpenBB expects specific env var names (e.g. TIINGO_TOKEN, not TIINGO_API_KEY).
+# Map common user-facing names to what OpenBB actually reads so credentials
+# "just work" regardless of which name the user sets.
+_ENV_ALIASES = {
+    "TIINGO_API_KEY": "TIINGO_TOKEN",
+    "BENZINGA_API_KEY": "BENZINGA_API_KEY",      # same name, no-op
+    "FMP_API_KEY": "FMP_API_KEY",                # same name, no-op
+    "INTRINIO_API_KEY": "INTRINIO_API_KEY",      # same name, no-op
+}
+
+for _src, _dst in _ENV_ALIASES.items():
+    if _src != _dst and os.environ.get(_src) and not os.environ.get(_dst):
+        os.environ[_dst] = os.environ[_src]
+        log.info(f"Mapped {_src} → {_dst} for OpenBB credential loading")
+
 _mode = os.environ.get("OPENBB_BRIDGE_MODE", "auto").lower()
 
 if _mode == "fallback":
@@ -194,7 +212,16 @@ def _live_financials(params: dict) -> dict:
 def _live_news(params: dict) -> dict:
     symbol = params.get("symbol", "AAPL")
     limit = int(params.get("limit", 5))
-    result = obb.news.world(query=symbol, limit=limit)  # type: ignore
+    # obb.news.company supports yfinance (free, no key) while obb.news.world
+    # only supports benzinga/fmp/intrinio/tiingo (all require API keys).
+    # Try company news first; fall back to world news if a paid provider is
+    # configured (world news gives broader coverage when credentials exist).
+    result = None
+    try:
+        result = obb.news.company(symbol=symbol, limit=limit)  # type: ignore
+    except Exception:
+        # company news failed — try world news (requires paid provider creds)
+        result = obb.news.world(query=symbol, limit=limit)  # type: ignore
     df = result.to_df()
     articles = []
     for _, row in df.iterrows():
