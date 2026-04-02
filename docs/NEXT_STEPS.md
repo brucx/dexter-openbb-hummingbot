@@ -99,10 +99,37 @@ and risks in actual research data instead of generic placeholders.
 - [x] Signal extraction tests (12 tests) + grounded content tests (17 tests) = 57 total data-quality tests
 - [x] Full test suite passes (245 tests)
 
+## Phase 2.10: LLM-Assisted Analysis Layer — COMPLETE
+
+Goal: Introduce an optional LLM analysis path that improves thesis/factors/risks
+quality by having a language model synthesize research signals, while keeping the
+heuristic generator as a reliable fallback.
+
+- [x] `detectLLMConfig()` — auto-detect LLM provider from env vars (ANTHROPIC_API_KEY, OPENAI_API_KEY, DEXTER_MODEL, OPENAI_API_BASE)
+  - Supports Anthropic and OpenAI-compatible providers
+  - Reuses existing config/example.env env var conventions
+  - Reports availability status with diagnostics
+- [x] `analyzeWithLLM()` — LLM analysis service using raw fetch (no SDK dependencies)
+  - Grounded prompt: model only sees extracted signals, never raw data
+  - Honest: instructions to flag uncertainty, never invent facts
+  - Structured JSON output: thesis, keyFactors, keyRisks, confidence
+  - 30s timeout, graceful error handling → returns null on any failure
+- [x] `autoDraftProposalWithLLM()` — async proposal generation with fallback chain
+  - LLM available + succeeds → LLM-generated content (marked [LLM-DRAFT])
+  - LLM unavailable or fails → heuristic fallback (existing autoDraftProposal)
+  - Data quality constraints still applied: confidence capping, risk injection, caveats
+  - ProposalResult extended: `usedLLMAnalysis`, `llmModel` fields
+- [x] Workflow integration: `analyzeSymbol()` tries LLM path when available
+  - `useLLM` option (default: true) for caller control
+  - `AnalyzeResult` extended: `usedLLMAnalysis`, `llmStatus` fields
+- [x] Tests: 21 new tests (config detection, prompt construction, response parsing, fallback chain)
+- [x] Full test suite passes (266 tests)
+
 ## Next Implementation Target
 
 - [ ] Emit `trade_proposal` event for Dexter event stream integration
 - [ ] Phase 3: Hummingbot paper trading bridge (when ready)
-- [ ] Agent-driven analysis: replace heuristic thesis with LLM-synthesized reasoning
+- [ ] LLM analysis: multi-turn refinement (follow-up questions when data is ambiguous)
+- [ ] LLM analysis: comparative analysis (vs sector, vs historical)
 - [ ] Deeper financial analysis: multi-period comparison, margin trends, debt ratios
 - [ ] Technical indicators: moving averages, RSI, volume patterns from price history

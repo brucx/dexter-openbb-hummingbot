@@ -10,11 +10,12 @@
 
 import { ResearchService } from "./research";
 import type { ResearchSnapshot } from "./research";
-import { autoDraftProposal } from "./proposal";
+import { autoDraftProposal, autoDraftProposalWithLLM } from "./proposal";
 import type { ProposalResult } from "./proposal";
 import { createProposalStore } from "./persistence";
 import type { ProposalStore } from "./persistence";
 import type { TradeIntent } from "../types/trade-intent";
+import { detectLLMConfig } from "./llm-config";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -35,6 +36,9 @@ export interface AnalyzeOptions {
 
   /** Pre-configured ResearchService (default: creates one from pythonBin/env) */
   service?: ResearchService;
+
+  /** Use LLM-assisted analysis if available (default: true) */
+  useLLM?: boolean;
 }
 
 export interface AnalyzeResult {
@@ -58,6 +62,12 @@ export interface AnalyzeResult {
 
   /** Short ID for CLI reference */
   shortId: string | null;
+
+  /** Whether LLM analysis was used for this proposal */
+  usedLLMAnalysis: boolean;
+
+  /** LLM availability info (for diagnostics) */
+  llmStatus: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,9 +122,16 @@ async function waitForBridge(
  */
 export async function analyzeSymbol(options: AnalyzeOptions): Promise<AnalyzeResult> {
   const { symbol, pythonBin, env } = options;
+  const useLLM = options.useLLM ?? true;
   const store = options.store ?? createProposalStore();
 
   const service = options.service ?? new ResearchService({ pythonBin, env });
+
+  // Check LLM availability upfront for diagnostics
+  const llmAvailability = detectLLMConfig();
+  const llmStatus = useLLM
+    ? llmAvailability.reason
+    : "LLM analysis disabled by caller";
 
   try {
     service.start();
@@ -123,8 +140,15 @@ export async function analyzeSymbol(options: AnalyzeOptions): Promise<AnalyzeRes
     // Step 1: Research
     const research = await service.research(symbol);
 
-    // Step 2: Generate proposal (includes data quality assessment + graceful degradation)
-    const proposal = autoDraftProposal(research);
+    // Step 2: Generate proposal
+    // Try LLM-assisted analysis if enabled and available; otherwise heuristic
+    let proposal: ProposalResult;
+    if (useLLM && llmAvailability.available) {
+      proposal = await autoDraftProposalWithLLM(research);
+    } else {
+      proposal = autoDraftProposal(research);
+      proposal.usedLLMAnalysis = false;
+    }
 
     // Step 3: Persist
     let proposalPath: string | null = null;
@@ -145,6 +169,8 @@ export async function analyzeSymbol(options: AnalyzeOptions): Promise<AnalyzeRes
       proposalPath,
       researchPath,
       shortId,
+      usedLLMAnalysis: proposal.usedLLMAnalysis ?? false,
+      llmStatus,
     };
   } finally {
     service.stop();
