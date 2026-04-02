@@ -1,0 +1,40 @@
+# =============================================================================
+# Safety and risk limit configuration
+# Copy to config/safety.yaml and adjust to your preferences.
+# =============================================================================
+
+limits:
+  # Maximum percentage of portfolio in a single position
+  max_position_pct: 5.0
+
+  # Maximum value of a single order in USD
+  max_order_value_usd: 1000
+
+  # Maximum number of orders per hour
+  max_orders_per_hour: 5
+
+  # Stop trading if daily paper P&L drops below this (negative = loss)
+  daily_loss_limit_usd: -500
+
+  # Require stop loss on every trade proposal
+  require_stop_loss: true
+
+  # Require research reasoning on every trade proposal (should always be true)
+  require_reasoning: true
+
+assets:
+  # Only these assets can be traded. Empty list = all allowed.
+  allowed:
+    - "BTC-USDT"
+    - "ETH-USDT"
+
+  # These assets are always blocked, even if in the allowed list.
+  blocked: []
+
+execution:
+  # This is hardcoded to true and cannot be changed.
+  # It exists in the config file as documentation, not as a toggle.
+  paper_trading_only: true
+
+  # Always confirm with the user before executing
+  confirm_before_execute: true

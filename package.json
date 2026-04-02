@@ -1,0 +1,13 @@
+{
+  "name": "dexter-openbb-hummingbot",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Research-to-execution pipeline: Dexter (AI agent) + OpenBB (data) + Hummingbot (paper trading)",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
