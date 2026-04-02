@@ -62,10 +62,13 @@ Concrete work items grouped by phase. Each task is small enough to be a single P
 - [x] Write proposal to disk as JSON file in `data/proposals/` (`src/services/persistence.ts`)
 - [ ] Emit `trade_proposal` event in Dexter's event stream
 
-### Trade Analysis Skill
-- [ ] Write `src/skills/trade-analysis/SKILL.md` — guided workflow
-- [ ] Skill steps: gather data → analyze fundamentals → check technicals → assess risk → propose
-- [ ] Register skill in Dexter's skill discovery
+### Trade Analysis Workflow
+- [x] Write `analyzeSymbol()` workflow function (`src/services/workflow.ts`)
+- [x] Add `analyze <SYMBOL>` CLI command to `src/cli.ts`
+- [x] Write workflow spec document (`docs/WORKFLOW.md`)
+- [x] Add workflow tests (`src/tests/workflow.test.ts`)
+- [ ] Replace auto-draft heuristics with agent-driven analysis logic (future)
+- [ ] Register as Dexter skill when skill discovery is available (future)
 
 ### CLI Display
 - [x] Format trade proposal for terminal display (`src/services/format.ts`)

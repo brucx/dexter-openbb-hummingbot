@@ -62,8 +62,21 @@ or fallback/sample-based. Data quality affects proposal content, not just displa
 - [x] `DataQualityAssessment` attached to every `ProposalResult` for downstream consumers
 - [x] Data quality tests (32 tests)
 
+## Phase 2.8: Trade Analysis Workflow — COMPLETE
+
+Goal: Provide a single CLI entrypoint that runs the full research → proposal
+pipeline, replacing the ad-hoc demo script with a proper workflow command.
+
+- [x] `analyzeSymbol()` workflow function — thin orchestrator composing research, proposal, persistence
+- [x] `analyze <SYMBOL>` CLI command — first-class entrypoint for the pipeline
+- [x] Data quality summary printed before proposal display
+- [x] Explicit next-step guidance: output tells user how to review/approve/reject
+- [x] Workflow spec document (`docs/WORKFLOW.md`)
+- [x] Workflow tests
+- [x] Updated npm scripts (`test:workflow`, `test:all`)
+
 ## Next Implementation Target
 
-- [ ] Trade analysis skill (SKILL.md) — guided research → proposal workflow
 - [ ] Emit `trade_proposal` event for Dexter event stream integration
 - [ ] Phase 3: Hummingbot paper trading bridge (when ready)
+- [ ] Replace auto-draft heuristics with agent-driven analysis logic

@@ -17,3 +17,6 @@ export type { ProposalStore, StatusUpdate } from "./persistence";
 
 export { formatProposal, formatProposalList } from "./format";
 export type { ResearchSummary } from "./format";
+
+export { analyzeSymbol } from "./workflow";
+export type { AnalyzeOptions, AnalyzeResult } from "./workflow";

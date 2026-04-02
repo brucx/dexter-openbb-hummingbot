@@ -1,17 +1,19 @@
 #!/usr/bin/env npx tsx
 /**
- * CLI for managing trade proposals.
+ * CLI for trade analysis and proposal management.
  *
  * Usage:
- *   npx tsx src/cli.ts proposals list
- *   npx tsx src/cli.ts proposals show <id>
- *   npx tsx src/cli.ts proposals approve <id>
- *   npx tsx src/cli.ts proposals reject <id> [--reason "..."]
+ *   npx tsx src/cli.ts analyze <SYMBOL>            Research a symbol and generate a proposal
+ *   npx tsx src/cli.ts proposals list               List all saved proposals
+ *   npx tsx src/cli.ts proposals show <id>          Show a single proposal in detail
+ *   npx tsx src/cli.ts proposals approve <id>       Approve a proposal
+ *   npx tsx src/cli.ts proposals reject <id> [--reason "..."]  Reject a proposal
  */
 
 import { createProposalStore } from "./services/persistence";
 import { formatProposal, formatProposalList, buildResearchSummary } from "./services/format";
 import type { ListPriceContext } from "./services/format";
+import { analyzeSymbol } from "./services/workflow";
 
 const store = createProposalStore();
 
@@ -21,14 +23,20 @@ const command = args[1];
 
 function usage(): void {
   console.log(`
-dexter — trade proposal management
+dexter — trade analysis and proposal management
 
 Usage:
+  dexter analyze <SYMBOL>                   Research a symbol and generate a trade proposal
   dexter proposals list                     List all saved proposals
   dexter proposals list --status <status>   Filter by status (proposed, approved, rejected)
   dexter proposals show <id>                Show a single proposal in detail
   dexter proposals approve <id>             Approve a proposal
   dexter proposals reject <id> [--reason "reason"]  Reject a proposal
+
+Workflow:
+  1. dexter analyze AAPL          Gather research, assess data, generate proposal
+  2. dexter proposals show <id>   Review the proposal with full research context
+  3. dexter proposals approve <id>   or   dexter proposals reject <id>
 `);
 }
 
@@ -56,7 +64,82 @@ function resolveId(partial: string): string | null {
   return null;
 }
 
-if (domain === "proposals" || domain === "p") {
+if (domain === "analyze" || domain === "a") {
+  const symbol = args[1];
+  if (!symbol || symbol.startsWith("-")) {
+    console.error("Usage: dexter analyze <SYMBOL>");
+    console.error("  Example: dexter analyze AAPL");
+    process.exit(1);
+  }
+
+  const bridgeMode = process.env.OPENBB_BRIDGE_MODE;
+  const env: Record<string, string> = {};
+  if (bridgeMode) {
+    env.OPENBB_BRIDGE_MODE = bridgeMode;
+  }
+
+  console.log(`\nAnalyzing ${symbol.toUpperCase()}...`);
+
+  try {
+    const result = await analyzeSymbol({
+      symbol: symbol.toUpperCase(),
+      pythonBin: process.env.OPENBB_PYTHON_BIN,
+      env,
+      store,
+    });
+
+    // Show data quality summary
+    const dq = result.proposal.dataQuality;
+    const srcLine = [
+      `Quote: ${dq.sources.quote}`,
+      `History: ${dq.sources.priceHistory}`,
+      `Financials: ${dq.sources.financials}`,
+      `News: ${dq.sources.news}`,
+    ].join("  ");
+    console.log(`\nData sources: ${srcLine}`);
+
+    if (dq.confidenceWasCapped) {
+      console.log(`Note: Confidence capped to "${dq.maxConfidence}" based on data availability.`);
+    }
+
+    if (result.intent) {
+      // Show the formatted proposal
+      const snapshot = result.research;
+      const researchSummary = buildResearchSummary(snapshot);
+      console.log();
+      console.log(formatProposal(result.intent, {
+        showId: true,
+        usedFallbackData: result.proposal.usedFallbackData,
+        researchSummary,
+      }));
+
+      // Next steps guidance
+      console.log();
+      console.log(`Proposal saved: ${result.shortId}...`);
+      console.log();
+      console.log(`Next steps:`);
+      console.log(`  dexter proposals show ${result.shortId}     Review in detail`);
+      console.log(`  dexter proposals approve ${result.shortId}  Approve for execution`);
+      console.log(`  dexter proposals reject ${result.shortId}   Reject with reason`);
+      console.log();
+    } else {
+      console.error(`\nProposal generation failed:`);
+      if (result.proposal.errors.length > 0) {
+        for (const e of result.proposal.errors) {
+          console.error(`  - ${e}`);
+        }
+      } else {
+        console.error(`  No explicit errors were reported. This may indicate insufficient`);
+        console.error(`  data to form a trade thesis. Try a different symbol or check`);
+        console.error(`  that the OpenBB bridge is returning data (OPENBB_BRIDGE_MODE=${process.env.OPENBB_BRIDGE_MODE ?? "auto"}).`);
+      }
+      process.exit(1);
+    }
+  } catch (err) {
+    console.error(`\nAnalysis failed: ${(err as Error).message}`);
+    process.exit(1);
+  }
+} else if (domain === "proposals" || domain === "p") {
   switch (command) {
     case "list":
     case "ls": {
