@@ -5,9 +5,14 @@
   "description": "Research-to-execution pipeline: Dexter (AI agent) + OpenBB (data) + Hummingbot (paper trading)",
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "npx tsx src/tests/validate-trade-intent.test.ts",
+    "demo": "npx tsx examples/research-demo.ts",
+    "demo:bridge": "npx tsx examples/bridge-test.ts"
   },
   "devDependencies": {
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "tsx": "^4.7.0",
+    "@types/node": "^22.0.0"
   }
 }
