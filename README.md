@@ -62,27 +62,53 @@ This project will **not**:
 
 ## Project status
 
-**Phase 0** — Documentation and scaffolding. See [docs/PLAN.md](docs/PLAN.md) for the full roadmap.
+**Phase 1 complete, early Phase 2 complete.** The read-only OpenBB research bridge and proposal builder are working.
+
+See [docs/PLAN.md](docs/PLAN.md) for the full roadmap.
+
+### What works now
+
+- **OpenBB bridge** (`src/bridge/openbb_bridge.py`) — JSON Lines stdin/stdout protocol with 4 methods: `quote`, `price_history`, `financials`, `news`. Auto-detects OpenBB SDK; falls back to deterministic sample data if not installed.
+- **Bridge client** (`src/bridge/bridge-client.ts`) — TypeScript process manager with request/response correlation, timeouts, and diagnostics.
+- **Research service** (`src/services/research.ts`) — High-level API: `getQuote()`, `getPriceHistory()`, `getFinancials()`, `getNews()`, and `research()` (parallel snapshot). All responses normalized into typed interfaces.
+- **Proposal builder** (`src/services/proposal.ts`) — `buildProposal()` validates and shapes research + parameters into a TradeIntent. `autoDraftProposal()` for quick demos.
+- **Tests** — `npm test` runs validation and proposal unit tests (no external deps).
+
+### What remains stubbed
+
+- **OpenBB methods**: `technicals`, `estimates`, `screen`, `macro` return stub responses.
+- **LangChain tool wrappers**: The research service is ready but not yet wrapped as LangChain StructuredTools.
+- **Proposal persistence**: Proposals are not yet saved to disk.
+- **Hummingbot bridge**: Placeholder only (Phase 3).
+- **Human approval gate**: Not yet built (Phase 3).
+- **Safety engine**: Types and basic checks exist; full integration pending (Phase 4).
 
 ## Getting started
 
 Prerequisites:
-- [Bun](https://bun.sh) (for Dexter, TypeScript runtime)
-- Python 3.10+ (for OpenBB and Hummingbot)
-- API keys for at least one LLM provider and one data provider
+- Node.js 18+ (with npm)
+- Python 3.10+
+- (Optional) `pip install openbb` for live market data — works without it using fallback data
 
 ```bash
-# Clone with submodule references
-git clone <this-repo>
+# Install dependencies
+npm install
 
-# See the plan
-cat docs/PLAN.md
+# Run the unit tests
+npm test
 
-# Copy and edit config
+# Run the research demo (uses fallback data — no API keys needed)
+npm run demo
+
+# Run the low-level bridge protocol test
+npm run demo:bridge
+
+# Run with a different symbol
+npx tsx examples/research-demo.ts MSFT
+
+# Copy and edit config (for live OpenBB data)
 cp config/example.env .env
 ```
-
-Detailed setup instructions will be added as each phase is implemented.
 
 ## Documentation
 

@@ -16,7 +16,7 @@ import json
 import sys
 import os
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="[openbb-bridge] %(message)s")
 log = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ def _fallback_quote(params: dict) -> dict:
         "pe_ratio": 30.5,
         "52_week_high": 199.62,
         "52_week_low": 143.90,
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
     }
 
 
@@ -67,7 +67,7 @@ def _fallback_price_history(params: dict) -> dict:
     days = params.get("days", 30)
     days = min(int(days), 90)
     base_price = 180.0
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     records = []
     for i in range(days):
         d = today - timedelta(days=days - 1 - i)
@@ -122,14 +122,14 @@ def _fallback_news(params: dict) -> dict:
             {
                 "title": f"{symbol} Reports Strong Quarterly Earnings",
                 "source": "Sample Financial News",
-                "date": datetime.utcnow().isoformat() + "Z",
+                "date": datetime.now(timezone.utc).isoformat() + "Z",
                 "summary": f"Sample article about {symbol} earnings performance.",
                 "url": "https://example.com/sample-article-1",
             },
             {
                 "title": f"Analysts Raise {symbol} Price Target",
                 "source": "Sample Market Watch",
-                "date": datetime.utcnow().isoformat() + "Z",
+                "date": datetime.now(timezone.utc).isoformat() + "Z",
                 "summary": f"Sample article about analyst coverage of {symbol}.",
                 "url": "https://example.com/sample-article-2",
             },
@@ -155,7 +155,7 @@ def _live_quote(params: dict) -> dict:
 def _live_price_history(params: dict) -> dict:
     symbol = params.get("symbol", "AAPL")
     days = int(params.get("days", 30))
-    start = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+    start = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
     result = obb.equity.price.historical(symbol=symbol, start_date=start)  # type: ignore
     df = result.to_df()
     records = []

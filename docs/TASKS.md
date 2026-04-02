@@ -15,34 +15,37 @@ Concrete work items grouped by phase. Each task is small enough to be a single P
 - [x] Define bridge protocol types in `src/types/bridge-protocol.ts`
 - [x] Create `config/example.env` with all required environment variables
 - [x] Create `config/safety.example.yaml` with default risk limits
-- [ ] Add `.gitignore` for node_modules, .env, Python venv, etc.
-- [ ] Add basic `package.json` with TypeScript config
+- [x] Add `.gitignore` for node_modules, .env, Python venv, etc.
+- [x] Add basic `package.json` with TypeScript config
 
 ---
 
 ## Phase 1: Read-Only Research Integration with OpenBB
 
 ### OpenBB Bridge (Python side)
-- [ ] Write `src/bridge/openbb_bridge.py` — JSON Lines stdin/stdout bridge
-- [ ] Implement `price_history` handler — calls `obb.equity.price.historical()`
-- [ ] Implement `quote` handler — calls `obb.equity.price.quote()`
-- [ ] Implement `financials` handler — calls `obb.equity.fundamental.*`
-- [ ] Implement `news` handler — calls `obb.news.world()`
-- [ ] Add error handling and timeout management
+- [x] Write `src/bridge/openbb_bridge.py` — JSON Lines stdin/stdout bridge
+- [x] Implement `price_history` handler — calls `obb.equity.price.historical()`
+- [x] Implement `quote` handler — calls `obb.equity.price.quote()`
+- [x] Implement `financials` handler — calls `obb.equity.fundamental.*`
+- [x] Implement `news` handler — calls `obb.news.world()`
+- [x] Add error handling and timeout management
+- [x] Add deterministic fallback mode when OpenBB SDK is not installed
 - [ ] Write `requirements.txt` for bridge dependencies (openbb, etc.)
-- [ ] Manual test: send JSON requests via stdin, verify responses
+- [x] Manual test: send JSON requests via stdin, verify responses (`examples/bridge-test.ts`)
 
 ### Dexter Tools (TypeScript side)
-- [ ] Write bridge client utility — spawns Python process, sends/receives JSON Lines
-- [ ] Write `openbb_price_history` tool — LangChain StructuredTool wrapping bridge call
-- [ ] Write `openbb_quote` tool — current price and volume
-- [ ] Write `openbb_financials` tool — income statement, balance sheet, cash flow
-- [ ] Write `openbb_news` tool — recent news for a symbol
-- [ ] Register all tools in Dexter's tool registry
-- [ ] Add tool descriptions optimized for agent understanding
+- [x] Write bridge client utility — spawns Python process, sends/receives JSON Lines (`src/bridge/bridge-client.ts`)
+- [x] Write research service with `getQuote`, `getPriceHistory`, `getFinancials`, `getNews` (`src/services/research.ts`)
+- [x] Write combined `research()` method for full snapshot
+- [x] Normalize bridge responses into typed interfaces
+- [ ] Write LangChain StructuredTool wrappers (deferred to Dexter integration)
+- [ ] Register all tools in Dexter's tool registry (deferred to Dexter integration)
+- [ ] Add tool descriptions optimized for agent understanding (deferred to Dexter integration)
 
 ### Integration Testing
-- [ ] End-to-end test: Dexter query → OpenBB tool call → data returned → agent uses it
+- [x] Bridge protocol test: `examples/bridge-test.ts`
+- [x] End-to-end research → proposal demo: `examples/research-demo.ts`
+- [x] Unit tests for validation and proposal building: `src/tests/validate-trade-intent.test.ts`
 - [ ] Test with multiple providers (yfinance, then FMP if API key available)
 - [ ] Test error paths: invalid symbol, provider down, timeout
 
@@ -51,8 +54,9 @@ Concrete work items grouped by phase. Each task is small enough to be a single P
 ## Phase 2: Proposal Generation and Structured Trade Intents
 
 ### Trade Proposal Tool
-- [ ] Write `propose_trade` tool — agent calls this to emit a TradeIntent
-- [ ] Validate TradeIntent against schema (required fields, value ranges)
+- [x] Write `buildProposal()` — shapes research + parameters into validated TradeIntent (`src/services/proposal.ts`)
+- [x] Write `autoDraftProposal()` — convenience auto-draft for demo/testing
+- [x] Validate TradeIntent against schema (required fields, value ranges)
 - [ ] Write proposal to disk as JSON file in `data/proposals/`
 - [ ] Emit `trade_proposal` event in Dexter's event stream
 

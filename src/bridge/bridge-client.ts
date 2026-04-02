@@ -35,10 +35,10 @@ export class BridgeClient {
 
   constructor(options: BridgeClientOptions) {
     this.options = {
-      pythonBin: "python3",
-      env: {},
-      timeoutMs: 30_000,
-      ...options,
+      scriptPath: options.scriptPath,
+      pythonBin: options.pythonBin ?? "python3",
+      env: options.env ?? {},
+      timeoutMs: options.timeoutMs ?? 30_000,
     };
   }
 
