@@ -7,7 +7,7 @@
 import type { TradeIntent } from "../types/trade-intent";
 
 /** Format a single TradeIntent for terminal display. */
-export function formatProposal(intent: TradeIntent, opts?: { showId?: boolean }): string {
+export function formatProposal(intent: TradeIntent, opts?: { showId?: boolean; usedFallbackData?: boolean }): string {
   const lines: string[] = [];
   const showId = opts?.showId ?? true;
 
@@ -30,6 +30,10 @@ export function formatProposal(intent: TradeIntent, opts?: { showId?: boolean })
   lines.push(`│ Horizon:    ${intent.time_horizon}    Position: ${intent.max_position_pct}% max`);
   lines.push(`│ Confidence: ${intent.confidence.toUpperCase()}`);
   lines.push(`│ Status:     ${intent.status}`);
+  if (opts?.usedFallbackData != null) {
+    const src = opts.usedFallbackData ? "FALLBACK (sample data)" : "LIVE";
+    lines.push(`│ Data:       ${src}`);
+  }
   lines.push(`│`);
   lines.push(`│ Thesis:`);
   // Wrap thesis to ~60 chars per line

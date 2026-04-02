@@ -126,6 +126,18 @@ export function autoDraftProposal(
   overrides: Partial<ProposalInput> = {},
 ): ProposalResult {
   const price = research.quote?.price ?? 100;
+  const anyFallback = Boolean(
+    research.quote?.isFallback ||
+    research.priceHistory?.isFallback ||
+    research.financials?.isFallback ||
+    research.news?.isFallback,
+  );
+  const risks: string[] = [
+    "This is an auto-generated draft — no real analysis was performed",
+  ];
+  if (anyFallback) {
+    risks.push("Some data is fallback/sample and may not reflect actual market conditions");
+  }
   const defaults: ProposalInput = {
     research,
     direction: "long",
@@ -142,10 +154,7 @@ export function autoDraftProposal(
       `Current price: $${price}`,
       `Research data available: quote=${!!research.quote}, history=${!!research.priceHistory}, financials=${!!research.financials}, news=${!!research.news}`,
     ],
-    keyRisks: [
-      "This is an auto-generated draft — no real analysis was performed",
-      "Fallback data may not reflect actual market conditions",
-    ],
+    keyRisks: risks,
     ...overrides,
   };
 

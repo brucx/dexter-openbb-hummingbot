@@ -91,8 +91,16 @@ try {
   if (snapshot.financials) {
     console.log(`\n--- Financials (${snapshot.financials.period}) ---`);
     const inc = snapshot.financials.incomeStatement;
-    if (inc.revenue) console.log(`  Revenue:    $${Number(inc.revenue).toLocaleString()}`);
-    if (inc.net_income) console.log(`  Net Income: $${Number(inc.net_income).toLocaleString()}`);
+    if (inc.revenue) console.log(`  Revenue:         $${Number(inc.revenue).toLocaleString()}`);
+    if (inc.gross_profit) console.log(`  Gross Profit:    $${Number(inc.gross_profit).toLocaleString()}`);
+    if (inc.operating_income) console.log(`  Operating Inc:   $${Number(inc.operating_income).toLocaleString()}`);
+    if (inc.net_income) console.log(`  Net Income:      $${Number(inc.net_income).toLocaleString()}`);
+    if (inc.eps) console.log(`  EPS:             $${Number(inc.eps)}`);
+    const bs = snapshot.financials.balanceSheet;
+    if (bs) {
+      if (bs.total_assets) console.log(`  Total Assets:    $${Number(bs.total_assets).toLocaleString()}`);
+      if (bs.total_equity) console.log(`  Total Equity:    $${Number(bs.total_equity).toLocaleString()}`);
+    }
     if (snapshot.financials.isFallback) console.log(`  ⚠ Fallback data`);
   }
 
@@ -118,11 +126,7 @@ try {
   const result = autoDraftProposal(snapshot);
 
   if (result.intent) {
-    console.log(formatProposal(result.intent));
-
-    if (result.usedFallbackData) {
-      console.log(`\n  ⚠ This proposal is based on FALLBACK data, not live market data.`);
-    }
+    console.log(formatProposal(result.intent, { usedFallbackData: result.usedFallbackData }));
     console.log(`\n  This is a PROPOSAL ONLY. No trade has been or will be executed.`);
 
     // -- Persist --
