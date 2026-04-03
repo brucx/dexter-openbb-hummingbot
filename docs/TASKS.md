@@ -103,6 +103,29 @@ Concrete work items grouped by phase. Each task is small enough to be a single P
 
 ---
 
+## Phase 2.11: LLM Governance — Observability & Guardrails
+
+### Analysis Mode Visibility
+- [x] `AnalysisModeInfo` type in `src/services/format.ts` — captures LLM/heuristic mode, model name, fallback reason
+- [x] `formatProposal()` shows "Analysis: LLM (model)" or "Analysis: Heuristic — reason" in proposal box
+- [x] CLI `analyze` command passes `AnalysisModeInfo` to formatter
+- [x] `[LLM-DRAFT via <model>]` thesis prefix includes model attribution
+- [x] 5 analysis mode visibility tests
+
+### LLM Output Guardrails
+- [x] `validateLLMOutput()` in `src/services/llm-analysis.ts` — deterministic validation of LLM output
+- [x] Guardrail: thesis non-empty and ≥20 chars
+- [x] Guardrail: thesis ≤5000 chars (reject runaway output)
+- [x] Guardrail: at least 1 non-empty key factor
+- [x] Guardrail: at least 1 non-empty key risk
+- [x] Guardrail: confidence is a recognized value
+- [x] `analyzeWithLLM()` applies guardrails after parsing — invalid output → null → heuristic fallback
+- [x] Guardrail failures logged with specific reasons
+- [x] 12 guardrail tests
+- [x] Full test suite passes (283 tests)
+
+---
+
 ## Phase 3: Hummingbot Paper Trading Bridge
 
 ### Hummingbot Bridge (Python side)

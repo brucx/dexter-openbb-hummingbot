@@ -262,6 +262,74 @@ function parseAnalysisResponse(raw: string, model: string, usage?: { prompt_toke
 }
 
 // ---------------------------------------------------------------------------
+// LLM output guardrails — lightweight, deterministic validation
+// ---------------------------------------------------------------------------
+
+/** Minimum thesis length to be considered substantive (in characters). */
+const MIN_THESIS_LENGTH = 20;
+
+/** Minimum number of key factors required. */
+const MIN_KEY_FACTORS = 1;
+
+/** Minimum number of key risks required. */
+const MIN_KEY_RISKS = 1;
+
+/** Maximum thesis length before we suspect garbage output (in characters). */
+const MAX_THESIS_LENGTH = 5000;
+
+/** Validation result with reason for rejection. */
+export interface GuardrailResult {
+  valid: boolean;
+  reasons: string[];
+}
+
+/**
+ * Validate LLM-generated analysis output against lightweight guardrails.
+ *
+ * These checks are simple and deterministic — no AI moderation, no fancy stack.
+ * They catch obviously broken or degenerate LLM output so the system can fall
+ * back to heuristic analysis instead of surfacing garbage to a human reviewer.
+ *
+ * Checks:
+ * - Thesis is non-empty and at least MIN_THESIS_LENGTH chars
+ * - Thesis is not unreasonably long (MAX_THESIS_LENGTH)
+ * - At least MIN_KEY_FACTORS non-empty factors
+ * - At least MIN_KEY_RISKS non-empty risks
+ * - Confidence is a recognized value
+ */
+export function validateLLMOutput(result: LLMAnalysisResult): GuardrailResult {
+  const reasons: string[] = [];
+
+  // Thesis checks
+  if (!result.thesis || result.thesis.trim().length === 0) {
+    reasons.push("Thesis is empty");
+  } else if (result.thesis.trim().length < MIN_THESIS_LENGTH) {
+    reasons.push(`Thesis too short (${result.thesis.trim().length} chars, minimum ${MIN_THESIS_LENGTH})`);
+  } else if (result.thesis.length > MAX_THESIS_LENGTH) {
+    reasons.push(`Thesis too long (${result.thesis.length} chars, maximum ${MAX_THESIS_LENGTH})`);
+  }
+
+  // Key factors checks
+  const validFactors = result.keyFactors.filter((f) => f.trim().length > 0);
+  if (validFactors.length < MIN_KEY_FACTORS) {
+    reasons.push(`Too few key factors (${validFactors.length}, minimum ${MIN_KEY_FACTORS})`);
+  }
+
+  // Key risks checks
+  const validRisks = result.keyRisks.filter((r) => r.trim().length > 0);
+  if (validRisks.length < MIN_KEY_RISKS) {
+    reasons.push(`Too few key risks (${validRisks.length}, minimum ${MIN_KEY_RISKS})`);
+  }
+
+  // Confidence check (already defaulted in parsing, but belt-and-suspenders)
+  if (!["low", "medium", "high"].includes(result.confidence)) {
+    reasons.push(`Invalid confidence value: "${result.confidence}"`);
+  }
+
+  return { valid: reasons.length === 0, reasons };
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -294,7 +362,19 @@ export async function analyzeWithLLM(
       return null;
     }
 
-    return parseAnalysisResponse(response.content, config.model, response.usage);
+    const parsed = parseAnalysisResponse(response.content, config.model, response.usage);
+    if (!parsed) {
+      return null;
+    }
+
+    // Apply guardrails — reject degenerate LLM output
+    const guardrail = validateLLMOutput(parsed);
+    if (!guardrail.valid) {
+      console.error(`[llm-analysis] LLM output failed guardrails, falling back to heuristic: ${guardrail.reasons.join("; ")}`);
+      return null;
+    }
+
+    return parsed;
   } catch (err) {
     // Log but don't throw — caller falls back to heuristic
     const msg = err instanceof Error ? err.message : String(err);

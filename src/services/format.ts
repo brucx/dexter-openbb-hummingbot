@@ -97,8 +97,18 @@ export function buildResearchSummary(snapshot: ResearchSnapshot): ResearchSummar
   return summary;
 }
 
+/** Analysis mode metadata for display. */
+export interface AnalysisModeInfo {
+  /** Whether LLM analysis was used (vs heuristic fallback) */
+  usedLLM: boolean;
+  /** Model name, if LLM was used */
+  model?: string;
+  /** Reason LLM was not used, if applicable */
+  fallbackReason?: string;
+}
+
 /** Format a single TradeIntent for terminal display. */
-export function formatProposal(intent: TradeIntent, opts?: { showId?: boolean; usedFallbackData?: boolean; researchSummary?: ResearchSummary }): string {
+export function formatProposal(intent: TradeIntent, opts?: { showId?: boolean; usedFallbackData?: boolean; researchSummary?: ResearchSummary; analysisMode?: AnalysisModeInfo }): string {
   const lines: string[] = [];
   const showId = opts?.showId ?? true;
 
@@ -124,6 +134,15 @@ export function formatProposal(intent: TradeIntent, opts?: { showId?: boolean; u
   if (opts?.usedFallbackData != null) {
     const src = opts.usedFallbackData ? "FALLBACK (sample data)" : "LIVE";
     lines.push(`│ Data:       ${src}`);
+  }
+  if (opts?.analysisMode) {
+    const am = opts.analysisMode;
+    if (am.usedLLM) {
+      lines.push(`│ Analysis:   LLM (${am.model ?? "unknown model"})`);
+    } else {
+      const reason = am.fallbackReason ? ` — ${am.fallbackReason}` : "";
+      lines.push(`│ Analysis:   Heuristic${reason}`);
+    }
   }
   lines.push(`│`);
   lines.push(`│ Thesis:`);

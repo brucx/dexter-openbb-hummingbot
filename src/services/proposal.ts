@@ -701,8 +701,8 @@ export async function autoDraftProposalWithLLM(
     takeProfit: Math.round(price * 1.10 * 100) / 100,
     timeHorizon: "1w",
     maxPositionPct: 2,
-    // LLM-generated content (marked as such)
-    thesis: `[LLM-DRAFT] ${llmResult.thesis}`,
+    // LLM-generated content (marked as such, with model attribution)
+    thesis: `[LLM-DRAFT via ${llmResult.model}] ${llmResult.thesis}`,
     confidence: llmResult.confidence,
     keyFactors: llmResult.keyFactors,
     keyRisks: [

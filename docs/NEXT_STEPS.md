@@ -125,8 +125,30 @@ heuristic generator as a reliable fallback.
 - [x] Tests: 21 new tests (config detection, prompt construction, response parsing, fallback chain)
 - [x] Full test suite passes (266 tests)
 
+## Phase 2.11: LLM Governance — Observability & Guardrails — COMPLETE
+
+Goal: Make analysis mode (LLM vs heuristic) visible to human reviewers, and add
+lightweight guardrails that reject degenerate LLM output with automatic heuristic fallback.
+
+- [x] Analysis mode visibility in CLI proposal output
+  - `formatProposal()` accepts `AnalysisModeInfo` and shows "Analysis: LLM (model)" or "Analysis: Heuristic (reason)"
+  - CLI `analyze` command passes analysis mode through to display
+  - `[LLM-DRAFT via <model>]` thesis marker includes model attribution
+  - `[AUTO-DRAFT]` marker preserved for heuristic path
+- [x] Lightweight LLM output guardrails (`validateLLMOutput()`)
+  - Thesis must be non-empty and ≥20 characters (rejects empty/trivial output)
+  - Thesis must be ≤5000 characters (rejects garbage/runaway output)
+  - At least 1 non-empty key factor required
+  - At least 1 non-empty key risk required
+  - Confidence must be a recognized value
+  - Guardrail failures logged with reasons, trigger automatic heuristic fallback
+  - All checks are deterministic — no AI moderation
+- [x] Tests: 17 new tests (12 guardrail + 5 analysis mode visibility) → 283 total
+
 ## Next Implementation Target
 
+- [ ] LLM governance: token usage tracking and cost observability per proposal
+- [ ] LLM governance: rate limiting / circuit breaker for LLM API calls
 - [ ] Emit `trade_proposal` event for Dexter event stream integration
 - [ ] Phase 3: Hummingbot paper trading bridge (when ready)
 - [ ] LLM analysis: multi-turn refinement (follow-up questions when data is ambiguous)

@@ -12,7 +12,7 @@
 
 import { createProposalStore } from "./services/persistence";
 import { formatProposal, formatProposalList, buildResearchSummary } from "./services/format";
-import type { ListPriceContext } from "./services/format";
+import type { ListPriceContext, AnalysisModeInfo } from "./services/format";
 import { analyzeSymbol } from "./services/workflow";
 
 const store = createProposalStore();
@@ -106,11 +106,17 @@ if (domain === "analyze" || domain === "a") {
       // Show the formatted proposal
       const snapshot = result.research;
       const researchSummary = buildResearchSummary(snapshot);
+      const analysisMode: AnalysisModeInfo = {
+        usedLLM: result.usedLLMAnalysis,
+        model: result.proposal.llmModel,
+        fallbackReason: result.usedLLMAnalysis ? undefined : result.llmStatus,
+      };
       console.log();
       console.log(formatProposal(result.intent, {
         showId: true,
         usedFallbackData: result.proposal.usedFallbackData,
         researchSummary,
+        analysisMode,
       }));
 
       // Next steps guidance

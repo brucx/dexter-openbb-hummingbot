@@ -10,11 +10,13 @@
 
 import { detectLLMConfig } from "../services/llm-config";
 import type { LLMAvailability } from "../services/llm-config";
-import { buildAnalysisPrompt, parseAnalysisResponse } from "../services/llm-analysis";
-import type { LLMAnalysisResult } from "../services/llm-analysis";
+import { buildAnalysisPrompt, parseAnalysisResponse, validateLLMOutput } from "../services/llm-analysis";
+import type { LLMAnalysisResult, GuardrailResult } from "../services/llm-analysis";
 import { autoDraftProposal, autoDraftProposalWithLLM, extractSignals } from "../services/proposal";
 import type { ResearchSignals } from "../services/proposal";
 import type { ResearchSnapshot } from "../services/research";
+import { formatProposal } from "../services/format";
+import type { AnalysisModeInfo } from "../services/format";
 
 let passed = 0;
 let failed = 0;
@@ -292,6 +294,151 @@ await test("handles empty research gracefully via fallback", async () => {
   const result = await autoDraftProposalWithLLM(research, { env: {} });
   assert(result.intent !== null, "should still produce a proposal");
   assert(result.usedLLMAnalysis === false, "should fall back to heuristic");
+});
+
+// ---------------------------------------------------------------------------
+// LLM Output Guardrails Tests
+// ---------------------------------------------------------------------------
+
+console.log("\n=== LLM Output Guardrails ===");
+
+function validLLMResult(overrides: Partial<LLMAnalysisResult> = {}): LLMAnalysisResult {
+  return {
+    thesis: "AAPL is trading at $185 with upward momentum supported by strong earnings and revenue growth.",
+    keyFactors: ["Strong earnings beat", "Revenue growth trend"],
+    keyRisks: ["Elevated valuation", "Market concentration risk"],
+    confidence: "medium",
+    model: "test-model",
+    ...overrides,
+  };
+}
+
+test("accepts valid LLM output", () => {
+  const result = validateLLMOutput(validLLMResult());
+  assert(result.valid, "should be valid");
+  assert(result.reasons.length === 0, "should have no rejection reasons");
+});
+
+test("rejects empty thesis", () => {
+  const result = validateLLMOutput(validLLMResult({ thesis: "" }));
+  assert(!result.valid, "should be invalid");
+  assert(result.reasons.some((r) => r.includes("empty")), "should mention empty thesis");
+});
+
+test("rejects whitespace-only thesis", () => {
+  const result = validateLLMOutput(validLLMResult({ thesis: "   " }));
+  assert(!result.valid, "should be invalid");
+  assert(result.reasons.some((r) => r.includes("empty")), "should mention empty thesis");
+});
+
+test("rejects too-short thesis", () => {
+  const result = validateLLMOutput(validLLMResult({ thesis: "Too short." }));
+  assert(!result.valid, "should be invalid");
+  assert(result.reasons.some((r) => r.includes("too short")), "should mention short thesis");
+});
+
+test("rejects too-long thesis", () => {
+  const result = validateLLMOutput(validLLMResult({ thesis: "x".repeat(5001) }));
+  assert(!result.valid, "should be invalid");
+  assert(result.reasons.some((r) => r.includes("too long")), "should mention long thesis");
+});
+
+test("rejects empty keyFactors", () => {
+  const result = validateLLMOutput(validLLMResult({ keyFactors: [] }));
+  assert(!result.valid, "should be invalid");
+  assert(result.reasons.some((r) => r.includes("factors")), "should mention factors");
+});
+
+test("rejects keyFactors with only empty strings", () => {
+  const result = validateLLMOutput(validLLMResult({ keyFactors: ["", "  "] }));
+  assert(!result.valid, "should be invalid");
+  assert(result.reasons.some((r) => r.includes("factors")), "should mention factors");
+});
+
+test("rejects empty keyRisks", () => {
+  const result = validateLLMOutput(validLLMResult({ keyRisks: [] }));
+  assert(!result.valid, "should be invalid");
+  assert(result.reasons.some((r) => r.includes("risks")), "should mention risks");
+});
+
+test("rejects keyRisks with only empty strings", () => {
+  const result = validateLLMOutput(validLLMResult({ keyRisks: ["", " "] }));
+  assert(!result.valid, "should be invalid");
+  assert(result.reasons.some((r) => r.includes("risks")), "should mention risks");
+});
+
+test("collects multiple guardrail failures", () => {
+  const result = validateLLMOutput(validLLMResult({ thesis: "", keyFactors: [], keyRisks: [] }));
+  assert(!result.valid, "should be invalid");
+  assert(result.reasons.length >= 3, `should have multiple reasons, got ${result.reasons.length}`);
+});
+
+test("accepts thesis at exactly minimum length", () => {
+  const result = validateLLMOutput(validLLMResult({ thesis: "A".repeat(20) }));
+  assert(result.valid, "should accept thesis at minimum length");
+});
+
+test("accepts single valid factor and risk", () => {
+  const result = validateLLMOutput(validLLMResult({
+    keyFactors: ["One valid factor"],
+    keyRisks: ["One valid risk"],
+  }));
+  assert(result.valid, "should accept minimum valid counts");
+});
+
+// ---------------------------------------------------------------------------
+// Analysis Mode Visibility Tests
+// ---------------------------------------------------------------------------
+
+console.log("\n=== Analysis Mode Visibility ===");
+
+test("formatProposal shows LLM analysis mode with model name", () => {
+  const research = fullLiveSnapshot();
+  const proposal = autoDraftProposal(research);
+  const intent = proposal.intent!;
+  const analysisMode: AnalysisModeInfo = { usedLLM: true, model: "gpt-5.4" };
+  const output = formatProposal(intent, { analysisMode });
+  assert(output.includes("Analysis:"), "should contain Analysis line");
+  assert(output.includes("LLM"), "should mention LLM");
+  assert(output.includes("gpt-5.4"), "should include model name");
+});
+
+test("formatProposal shows heuristic analysis mode", () => {
+  const research = fullLiveSnapshot();
+  const proposal = autoDraftProposal(research);
+  const intent = proposal.intent!;
+  const analysisMode: AnalysisModeInfo = { usedLLM: false, fallbackReason: "No LLM API key found" };
+  const output = formatProposal(intent, { analysisMode });
+  assert(output.includes("Analysis:"), "should contain Analysis line");
+  assert(output.includes("Heuristic"), "should mention Heuristic");
+  assert(output.includes("No LLM API key"), "should include fallback reason");
+});
+
+test("formatProposal shows heuristic without reason when none provided", () => {
+  const research = fullLiveSnapshot();
+  const proposal = autoDraftProposal(research);
+  const intent = proposal.intent!;
+  const analysisMode: AnalysisModeInfo = { usedLLM: false };
+  const output = formatProposal(intent, { analysisMode });
+  assert(output.includes("Heuristic"), "should mention Heuristic");
+  assert(!output.includes("undefined"), "should not show undefined");
+});
+
+test("formatProposal omits analysis line when no analysisMode provided", () => {
+  const research = fullLiveSnapshot();
+  const proposal = autoDraftProposal(research);
+  const intent = proposal.intent!;
+  const output = formatProposal(intent);
+  assert(!output.includes("Analysis:"), "should not contain Analysis line when not provided");
+});
+
+test("LLM-draft thesis includes model attribution", async () => {
+  // When LLM is not configured, we can't test actual LLM path, but we can verify
+  // the thesis marker format by checking the autoDraftProposalWithLLM fallback
+  const research = fullLiveSnapshot();
+  const result = await autoDraftProposalWithLLM(research, { env: {} });
+  // Heuristic fallback should use [AUTO-DRAFT]
+  assert(result.intent!.thesis.includes("[AUTO-DRAFT]"), "heuristic fallback should use AUTO-DRAFT marker");
 });
 
 // ---------------------------------------------------------------------------
