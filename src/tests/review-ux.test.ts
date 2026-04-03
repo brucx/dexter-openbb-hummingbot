@@ -228,6 +228,61 @@ console.log("\n=== buildResearchSummary ===\n");
   assert(da.errors!.length === 4, "all errors preserved");
 }
 
+// ---- Live-but-empty financials consistency in UI ----------------------------
+
+console.log("\n=== Live-but-empty financials in UI ===\n");
+
+{
+  // Live financials with empty income statement should show as "--" not "OK"
+  const snapshot = makeSnapshot({
+    financials: { symbol: "AAPL", period: "annual", incomeStatement: {}, isFallback: false },
+  });
+  const summary = buildResearchSummary(snapshot);
+  const da = summary.dataAvailability!;
+  assert(da.financials === "unavailable", "live-but-empty financials should be unavailable");
+
+  const output = formatProposal(makeIntent(), { researchSummary: summary });
+  assert(output.includes("Financials: --"), "live-but-empty financials should show as --");
+  assert(!output.includes("Financials: OK"), "should NOT show Financials: OK when income statement is empty");
+}
+
+{
+  // Live financials with content should still show as "OK"
+  const snapshot = makeSnapshot();
+  const summary = buildResearchSummary(snapshot);
+  const da = summary.dataAvailability!;
+  assert(da.financials === "live", "financials with content should remain live");
+}
+
+// ---- Zero day-change display -----------------------------------------------
+
+console.log("\n=== Zero day-change display ===\n");
+
+{
+  const snapshot = makeSnapshot({
+    quote: {
+      symbol: "AAPL",
+      price: 185.5,
+      change: 0,
+      changePct: 0,
+      volume: 54_320_000,
+      isFallback: false,
+    },
+  });
+  const summary = buildResearchSummary(snapshot);
+  const output = formatProposal(makeIntent(), { researchSummary: summary });
+  assert(output.includes("(unchanged)"), "zero day change should show as unchanged");
+  assert(!output.includes("+0.00%"), "should not show +0.00%");
+}
+
+{
+  // Non-zero change should still show percentage
+  const snapshot = makeSnapshot();
+  const summary = buildResearchSummary(snapshot);
+  const output = formatProposal(makeIntent(), { researchSummary: summary });
+  assert(output.includes("+1.28%"), "non-zero change should show percentage");
+}
+
 // ---- Enriched formatProposal display --------------------------------------
 
 console.log("\n=== Enriched formatProposal ===\n");

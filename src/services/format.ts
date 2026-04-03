@@ -86,10 +86,21 @@ export function buildResearchSummary(snapshot: ResearchSnapshot): ResearchSummar
     if (!data) return "unavailable";
     return data.isFallback ? "fallback" : "live";
   };
+
+  // Financials may be "live" but have an empty income statement — treat as unavailable
+  // so the UI status stays consistent with what the thesis/risks text infers
+  let financialsStatus = sourceStatus(snapshot.financials);
+  if (financialsStatus === "live" && snapshot.financials) {
+    const inc = snapshot.financials.incomeStatement;
+    if (!inc || Object.keys(inc).length === 0) {
+      financialsStatus = "unavailable";
+    }
+  }
+
   summary.dataAvailability = {
     quote: sourceStatus(snapshot.quote),
     priceHistory: sourceStatus(snapshot.priceHistory),
-    financials: sourceStatus(snapshot.financials),
+    financials: financialsStatus,
     news: sourceStatus(snapshot.news),
     errors: snapshot.errors.length > 0 ? snapshot.errors : undefined,
   };
@@ -173,9 +184,14 @@ export function formatProposal(intent: TradeIntent, opts?: { showId?: boolean; u
     const ts = rs.researchTimestamp ? ` (${rs.researchTimestamp.slice(0, 16).replace("T", " ")})` : "";
     lines.push(`│ Research snapshot:${ts}`);
     if (rs.currentPrice != null) {
-      const chg = rs.dayChange != null && rs.dayChangePct != null
-        ? `  (${rs.dayChange >= 0 ? "+" : ""}${rs.dayChange.toFixed(2)} / ${rs.dayChangePct >= 0 ? "+" : ""}${rs.dayChangePct.toFixed(2)}%)`
-        : "";
+      let chg = "";
+      if (rs.dayChange != null && rs.dayChangePct != null) {
+        if (Math.abs(rs.dayChangePct) < 0.01) {
+          chg = "  (unchanged)";
+        } else {
+          chg = `  (${rs.dayChange >= 0 ? "+" : ""}${rs.dayChange.toFixed(2)} / ${rs.dayChangePct >= 0 ? "+" : ""}${rs.dayChangePct.toFixed(2)}%)`;
+        }
+      }
       lines.push(`│   Price: $${rs.currentPrice}${chg}`);
     }
     if (rs.volume != null) lines.push(`│   Volume: ${formatNumber(rs.volume)}`);

@@ -507,7 +507,7 @@ test("auto-draft factors include news coverage", () => {
   const result = autoDraftProposal(fullLiveSnapshot());
   const factors = result.intent!.key_factors;
   assert(factors.some((f) => f.includes("article")), "should mention article count");
-  assert(factors.some((f) => f.includes("AAPL beats earnings")), "should include top headline");
+  assert(factors.some((f) => f.includes("AAPL beats earnings") && f.includes("may reflect broader")), "should include top headline with sector/market qualifier");
 });
 
 test("auto-draft factors include data source transparency", () => {
@@ -586,6 +586,68 @@ test("auto-draft with partial data (quote only) is cautious but informative", ()
   // Missing financials/history/news — risks should reflect that
   assert(result.intent!.key_risks.some((r) => r.includes("No live financial data")), "should warn about missing financials");
   assert(result.intent!.key_risks.some((r) => r.includes("No live news data")), "should warn about missing news");
+});
+
+// ---------------------------------------------------------------------------
+// Live-but-empty financials consistency tests
+// ---------------------------------------------------------------------------
+
+console.log("\n=== Live-but-empty financials consistency ===\n");
+
+test("assessDataQuality treats live-but-empty financials as missing", () => {
+  const snap = fullLiveSnapshot();
+  snap.financials = { symbol: "AAPL", period: "annual", incomeStatement: {}, isFallback: false };
+  const dq = assessDataQuality(snap);
+  assert(dq.sources.financials === "missing", `expected missing, got ${dq.sources.financials}`);
+  assert(dq.dataRisks.some((r) => r.includes("No financial data")), "should warn about missing financials");
+});
+
+test("assessDataQuality treats live financials with content as live", () => {
+  const dq = assessDataQuality(fullLiveSnapshot());
+  assert(dq.sources.financials === "live", `expected live, got ${dq.sources.financials}`);
+});
+
+test("extractSignals returns null financials for live-but-empty income statement", () => {
+  const snap = fullLiveSnapshot();
+  snap.financials = { symbol: "AAPL", period: "annual", incomeStatement: {}, isFallback: false };
+  const signals = extractSignals(snap);
+  assert(signals.financials === null, "should return null for empty income statement");
+});
+
+// ---------------------------------------------------------------------------
+// Zero day-change handling tests
+// ---------------------------------------------------------------------------
+
+console.log("\n=== Zero day-change handling ===\n");
+
+test("auto-draft shows 'unchanged today' when dayChangePct is zero", () => {
+  const snap = fullLiveSnapshot();
+  snap.quote!.change = 0;
+  snap.quote!.changePct = 0;
+  const result = autoDraftProposal(snap);
+  const factors = result.intent!.key_factors;
+  assert(factors.some((f) => f.includes("unchanged today")), `should say unchanged, got: ${factors.find((f) => f.includes("Current price"))}`);
+  assert(!factors.some((f) => f.includes("+0.00%")), "should not show +0.00%");
+});
+
+test("auto-draft shows percentage when dayChangePct is meaningful", () => {
+  const result = autoDraftProposal(fullLiveSnapshot());
+  const factors = result.intent!.key_factors;
+  assert(factors.some((f) => f.includes("+1.28%")), "should show actual percentage");
+});
+
+// ---------------------------------------------------------------------------
+// News headline qualification tests
+// ---------------------------------------------------------------------------
+
+console.log("\n=== News headline qualification ===\n");
+
+test("auto-draft news factor includes sector/market qualifier", () => {
+  const result = autoDraftProposal(fullLiveSnapshot());
+  const factors = result.intent!.key_factors;
+  const headlineFactor = factors.find((f) => f.includes("headline"));
+  assert(headlineFactor != null, "should have headline factor");
+  assert(headlineFactor!.includes("may reflect broader"), `should qualify headline: ${headlineFactor}`);
 });
 
 // ---------------------------------------------------------------------------

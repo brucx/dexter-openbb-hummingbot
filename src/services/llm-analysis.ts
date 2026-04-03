@@ -60,7 +60,11 @@ function buildAnalysisPrompt(symbol: string, signals: ResearchSignals): string {
   if (signals.price) {
     const p = signals.price;
     sections.push(`- Current price: $${p.currentPrice.toFixed(2)}`);
-    sections.push(`- Day change: ${p.dayChangePct >= 0 ? "+" : ""}${p.dayChangePct.toFixed(2)}%`);
+    if (Math.abs(p.dayChangePct) < 0.01) {
+      sections.push("- Day change: unchanged (0.00%)");
+    } else {
+      sections.push(`- Day change: ${p.dayChangePct >= 0 ? "+" : ""}${p.dayChangePct.toFixed(2)}%`);
+    }
     if (p.volume > 0) sections.push(`- Volume: ${p.volume.toLocaleString()}`);
     if (p.marketCap != null) sections.push(`- Market cap: $${(p.marketCap / 1e9).toFixed(1)}B`);
     if (p.peRatio != null) sections.push(`- P/E ratio: ${p.peRatio.toFixed(1)}`);
@@ -95,6 +99,7 @@ function buildAnalysisPrompt(symbol: string, signals: ResearchSignals): string {
   sections.push("## News");
   if (signals.news) {
     sections.push(`- ${signals.news.articleCount} recent article(s)`);
+    sections.push("- Note: headlines may include general sector or market news, not necessarily specific to this company. Do not overstate their relevance.");
     if (signals.news.headlines.length > 0) {
       sections.push("- Headlines:");
       for (const h of signals.news.headlines) {

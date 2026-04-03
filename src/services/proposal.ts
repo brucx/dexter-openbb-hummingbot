@@ -140,6 +140,16 @@ export function assessDataQuality(research: ResearchSnapshot): DataQualityAssess
     news: sourceStatus(research.news),
   };
 
+  // Financials may be technically "live" but have no usable income statement data —
+  // treat as missing so confidence capping and risk warnings stay consistent with
+  // what extractFinancialSignals will actually produce (null).
+  if (sources.financials === "live" && research.financials) {
+    const inc = research.financials.incomeStatement;
+    if (!inc || Object.keys(inc).length === 0) {
+      sources.financials = "missing";
+    }
+  }
+
   const allStatuses = Object.values(sources);
   const liveCount = allStatuses.filter((s) => s === "live").length;
   const fallbackCount = allStatuses.filter((s) => s === "fallback").length;
@@ -480,7 +490,10 @@ function buildGroundedFactors(signals: ResearchSignals): string[] {
 
   if (signals.price) {
     const p = signals.price;
-    factors.push(`Current price: $${p.currentPrice.toFixed(2)} (${p.dayChangePct >= 0 ? "+" : ""}${p.dayChangePct.toFixed(2)}% today)`);
+    const dayChgLabel = Math.abs(p.dayChangePct) < 0.01
+      ? "unchanged today"
+      : `${p.dayChangePct >= 0 ? "+" : ""}${p.dayChangePct.toFixed(2)}% today`;
+    factors.push(`Current price: $${p.currentPrice.toFixed(2)} (${dayChgLabel})`);
 
     if (p.volume > 0) {
       factors.push(`Volume: ${p.volume.toLocaleString()}`);
@@ -521,7 +534,7 @@ function buildGroundedFactors(signals: ResearchSignals): string[] {
     if (signals.news.articleCount > 0) {
       factors.push(`News coverage: ${signals.news.articleCount} recent article(s)`);
       if (signals.news.headlines.length > 0) {
-        factors.push(`Top headline: "${signals.news.headlines[0]}"`);
+        factors.push(`Recent headline (may reflect broader market/sector): "${signals.news.headlines[0]}"`);
       }
     } else {
       factors.push("No recent news coverage found");

@@ -177,6 +177,22 @@ test("builds prompt with full signals", () => {
   assert(prompt.includes("JSON"), "should request JSON output");
 });
 
+test("builds prompt with 'unchanged' when dayChangePct is zero", () => {
+  const snap = fullLiveSnapshot();
+  snap.quote!.change = 0;
+  snap.quote!.changePct = 0;
+  const signals = extractSignals(snap);
+  const prompt = buildAnalysisPrompt("AAPL", signals);
+  assert(prompt.includes("unchanged"), "should say unchanged for zero day change");
+  assert(!prompt.includes("+0.00%"), "should not show +0.00%");
+});
+
+test("builds prompt with news headline qualification", () => {
+  const signals = extractSignals(fullLiveSnapshot());
+  const prompt = buildAnalysisPrompt("AAPL", signals);
+  assert(prompt.includes("not necessarily specific to this company"), "should qualify news headlines");
+});
+
 test("builds prompt with empty signals", () => {
   const signals = extractSignals(emptySnapshot());
   const prompt = buildAnalysisPrompt("XYZ", signals);
