@@ -110,6 +110,7 @@ if (domain === "analyze" || domain === "a") {
         usedLLM: result.usedLLMAnalysis,
         model: result.proposal.llmModel,
         fallbackReason: result.usedLLMAnalysis ? undefined : result.llmStatus,
+        tokenUsage: result.llmTokenUsage,
       };
       console.log();
       console.log(formatProposal(result.intent, {

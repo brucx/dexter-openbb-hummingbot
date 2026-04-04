@@ -81,6 +81,9 @@ export interface ProposalResult {
 
   /** Human-readable detail about the fallback reason. */
   fallbackDetail?: string;
+
+  /** Token usage from LLM analysis, if available. Unset for heuristic path. */
+  llmTokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -735,5 +738,12 @@ export async function autoDraftProposalWithLLM(
   const result = buildProposal(proposalInput);
   result.usedLLMAnalysis = true;
   result.llmModel = llmResult.model;
+  if (llmResult.usage) {
+    result.llmTokenUsage = {
+      promptTokens: llmResult.usage.promptTokens,
+      completionTokens: llmResult.usage.completionTokens,
+      totalTokens: llmResult.usage.promptTokens + llmResult.usage.completionTokens,
+    };
+  }
   return result;
 }

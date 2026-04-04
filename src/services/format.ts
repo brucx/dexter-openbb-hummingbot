@@ -116,6 +116,8 @@ export interface AnalysisModeInfo {
   model?: string;
   /** Reason LLM was not used, if applicable */
   fallbackReason?: string;
+  /** Token usage from LLM call, if available. Never set for heuristic path. */
+  tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number };
 }
 
 /** Format a single TradeIntent for terminal display. */
@@ -150,6 +152,10 @@ export function formatProposal(intent: TradeIntent, opts?: { showId?: boolean; u
     const am = opts.analysisMode;
     if (am.usedLLM) {
       lines.push(`│ Analysis:   LLM (${am.model ?? "unknown model"})`);
+      if (am.tokenUsage) {
+        const u = am.tokenUsage;
+        lines.push(`│ Tokens:     ${u.totalTokens.toLocaleString()} (${u.promptTokens.toLocaleString()} prompt + ${u.completionTokens.toLocaleString()} completion)`);
+      }
     } else {
       const reason = am.fallbackReason ? ` — ${am.fallbackReason}` : "";
       lines.push(`│ Analysis:   Heuristic${reason}`);

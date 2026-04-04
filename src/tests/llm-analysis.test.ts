@@ -448,6 +448,51 @@ test("formatProposal omits analysis line when no analysisMode provided", () => {
   assert(!output.includes("Analysis:"), "should not contain Analysis line when not provided");
 });
 
+test("formatProposal shows token usage when LLM analysis used", () => {
+  const research = fullLiveSnapshot();
+  const proposal = autoDraftProposal(research);
+  const intent = proposal.intent!;
+  const analysisMode: AnalysisModeInfo = {
+    usedLLM: true,
+    model: "gpt-5.4",
+    tokenUsage: { promptTokens: 820, completionTokens: 350, totalTokens: 1170 },
+  };
+  const output = formatProposal(intent, { analysisMode });
+  assert(output.includes("Tokens:"), "should contain Tokens line");
+  assert(output.includes("1,170"), "should show total tokens formatted");
+  assert(output.includes("820"), "should show prompt tokens");
+  assert(output.includes("350"), "should show completion tokens");
+  assert(output.includes("prompt"), "should label prompt tokens");
+  assert(output.includes("completion"), "should label completion tokens");
+});
+
+test("formatProposal omits token usage when LLM used but no usage data", () => {
+  const research = fullLiveSnapshot();
+  const proposal = autoDraftProposal(research);
+  const intent = proposal.intent!;
+  const analysisMode: AnalysisModeInfo = { usedLLM: true, model: "gpt-5.4" };
+  const output = formatProposal(intent, { analysisMode });
+  assert(output.includes("LLM"), "should show LLM analysis mode");
+  assert(!output.includes("Tokens:"), "should not show Tokens line when no usage data");
+});
+
+test("formatProposal never shows token usage for heuristic analysis", () => {
+  const research = fullLiveSnapshot();
+  const proposal = autoDraftProposal(research);
+  const intent = proposal.intent!;
+  const analysisMode: AnalysisModeInfo = { usedLLM: false, fallbackReason: "No LLM configured" };
+  const output = formatProposal(intent, { analysisMode });
+  assert(output.includes("Heuristic"), "should show Heuristic mode");
+  assert(!output.includes("Tokens:"), "should not show Tokens line for heuristic");
+});
+
+test("autoDraftProposalWithLLM heuristic fallback has no token usage", async () => {
+  const research = fullLiveSnapshot();
+  const result = await autoDraftProposalWithLLM(research, { env: {} });
+  assert(result.usedLLMAnalysis === false, "should be heuristic");
+  assert(result.llmTokenUsage === undefined, "should have no token usage on heuristic path");
+});
+
 test("LLM-draft thesis includes model attribution", async () => {
   // When LLM is not configured, we can't test actual LLM path, but we can verify
   // the thesis marker format by checking the autoDraftProposalWithLLM fallback

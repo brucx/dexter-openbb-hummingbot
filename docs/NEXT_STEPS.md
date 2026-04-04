@@ -145,9 +145,21 @@ lightweight guardrails that reject degenerate LLM output with automatic heuristi
   - All checks are deterministic — no AI moderation
 - [x] Tests: 17 new tests (12 guardrail + 5 analysis mode visibility) → 283 total
 
+## Phase 2.12: LLM Token Usage Observability (completed)
+
+Surface LLM token consumption per proposal so reviewers can see resource usage at a glance.
+
+- [x] `ProposalResult.llmTokenUsage` — captures prompt, completion, and total token counts
+- [x] `AnalysisModeInfo.tokenUsage` — carries token data to the display layer
+- [x] `AnalyzeResult.llmTokenUsage` — workflow propagates token usage to CLI
+- [x] `formatProposal()` shows `Tokens: N (prompt + completion)` line when LLM was used
+- [x] Token usage never displayed for heuristic-only analysis
+- [x] CLI `analyze` command passes token usage through to formatter
+- [x] No cost display — deferred (pricing varies by provider/model, better to show raw tokens than speculative cost math)
+- [x] Tests: 4 new token usage visibility tests → 287 total (44 in LLM test file)
+
 ## Next Implementation Target
 
-- [ ] LLM governance: token usage tracking and cost observability per proposal
 - [ ] LLM governance: rate limiting / circuit breaker for LLM API calls
 - [ ] Emit `trade_proposal` event for Dexter event stream integration
 - [ ] Phase 3: Hummingbot paper trading bridge (when ready)

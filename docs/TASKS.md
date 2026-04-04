@@ -126,6 +126,22 @@ Concrete work items grouped by phase. Each task is small enough to be a single P
 
 ---
 
+## Phase 2.12: LLM Token Usage Observability
+
+### Token Usage Surfacing
+- [x] `ProposalResult.llmTokenUsage` field — `{ promptTokens, completionTokens, totalTokens }`
+- [x] `autoDraftProposalWithLLM()` propagates usage from `LLMAnalysisResult` to `ProposalResult`
+- [x] `AnalysisModeInfo.tokenUsage` carries token data to display layer
+- [x] `formatProposal()` shows "Tokens: N (prompt + completion)" when LLM was used
+- [x] Token line omitted when no usage data available or heuristic path used
+- [x] `AnalyzeResult.llmTokenUsage` in workflow — propagated to CLI
+- [x] CLI `analyze` passes token usage into `AnalysisModeInfo` for display
+- [x] Cost display intentionally deferred (pricing assumptions too speculative)
+- [x] 4 new tests: token display, no-usage-data, heuristic-clean, fallback-clean
+- [x] Full test suite passes (287 tests across all files)
+
+---
+
 ## Phase 3: Hummingbot Paper Trading Bridge
 
 ### Hummingbot Bridge (Python side)

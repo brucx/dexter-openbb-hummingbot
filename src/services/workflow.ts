@@ -68,6 +68,9 @@ export interface AnalyzeResult {
 
   /** LLM availability info (for diagnostics) */
   llmStatus: string;
+
+  /** Token usage from LLM analysis, if available */
+  llmTokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -170,6 +173,7 @@ export async function analyzeSymbol(options: AnalyzeOptions): Promise<AnalyzeRes
       researchPath,
       shortId,
       usedLLMAnalysis: proposal.usedLLMAnalysis ?? false,
+      llmTokenUsage: proposal.llmTokenUsage,
       llmStatus: proposal.usedLLMAnalysis
         ? llmStatus
         : (proposal.fallbackCategory === "no_llm_configured"
