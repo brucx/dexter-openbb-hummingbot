@@ -14,7 +14,7 @@ import type { ResearchSnapshot } from "./research";
 import { detectLLMConfig } from "./llm-config";
 import type { LLMConfig } from "./llm-config";
 import { analyzeWithLLM } from "./llm-analysis";
-import type { LLMAnalysisResult } from "./llm-analysis";
+import type { LLMAnalysisResult, LLMFailureCategory } from "./llm-analysis";
 
 export interface ProposalInput {
   /** The research snapshot to base the proposal on */
@@ -75,6 +75,12 @@ export interface ProposalResult {
 
   /** Model that produced the analysis, if LLM was used */
   llmModel?: string;
+
+  /** Why heuristic fallback was used (unset when LLM succeeded or wasn't attempted). */
+  fallbackCategory?: "no_llm_configured" | "disabled_by_caller" | LLMFailureCategory;
+
+  /** Human-readable detail about the fallback reason. */
+  fallbackDetail?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -678,28 +684,29 @@ export async function autoDraftProposalWithLLM(
     // No LLM available — heuristic fallback
     const result = autoDraftProposal(research, overrides);
     result.usedLLMAnalysis = false;
+    result.fallbackCategory = "no_llm_configured";
+    result.fallbackDetail = llmAvailability.reason;
     return result;
   }
 
   // Try LLM analysis
-  let llmResult: LLMAnalysisResult | null = null;
-  try {
-    llmResult = await analyzeWithLLM(
-      llmAvailability.config,
-      research.symbol,
-      signals,
-      { timeoutMs },
-    );
-  } catch {
-    // Swallow — fall through to heuristic
-  }
+  const outcome = await analyzeWithLLM(
+    llmAvailability.config,
+    research.symbol,
+    signals,
+    { timeoutMs },
+  );
 
-  if (!llmResult) {
-    // LLM failed — heuristic fallback
+  if (!outcome.result) {
+    // LLM failed — heuristic fallback with specific reason
     const result = autoDraftProposal(research, overrides);
     result.usedLLMAnalysis = false;
+    result.fallbackCategory = outcome.failureCategory;
+    result.fallbackDetail = outcome.failureDetail;
     return result;
   }
+
+  const llmResult = outcome.result;
 
   // Build proposal using LLM output, still applying data quality constraints
   const price = signals.price?.currentPrice ?? research.quote?.price ?? 100;

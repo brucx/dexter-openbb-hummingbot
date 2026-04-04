@@ -288,6 +288,27 @@ export interface GuardrailResult {
   reasons: string[];
 }
 
+// ---------------------------------------------------------------------------
+// Failure categorization
+// ---------------------------------------------------------------------------
+
+/** Why an LLM analysis attempt did not produce a result. */
+export type LLMFailureCategory =
+  | "api_error"           // Network, timeout, HTTP error, abort
+  | "empty_response"      // API returned OK but no content
+  | "parse_error"         // Response was not valid JSON / missing required fields
+  | "guardrail_rejection"; // Parsed OK but failed deterministic guardrails
+
+/** Outcome of an LLM analysis attempt — always returned, never throws. */
+export interface LLMAnalysisOutcome {
+  /** The analysis result, or null if the attempt failed. */
+  result: LLMAnalysisResult | null;
+  /** Set when result is null — categorizes the failure. */
+  failureCategory?: LLMFailureCategory;
+  /** Human-readable detail about the failure. */
+  failureDetail?: string;
+}
+
 /**
  * Validate LLM-generated analysis output against lightweight guardrails.
  *
@@ -341,15 +362,16 @@ export function validateLLMOutput(result: LLMAnalysisResult): GuardrailResult {
 /**
  * Run LLM-assisted analysis on extracted research signals.
  *
- * Returns null on any failure (network, parse, timeout, bad response).
- * The caller is expected to fall back to heuristic analysis when this returns null.
+ * Returns an {@link LLMAnalysisOutcome} that always has a `result` field
+ * (non-null on success, null on failure) plus failure metadata when applicable.
+ * The caller is expected to fall back to heuristic analysis when `result` is null.
  */
 export async function analyzeWithLLM(
   config: LLMConfig,
   symbol: string,
   signals: ResearchSignals,
   options: { timeoutMs?: number } = {},
-): Promise<LLMAnalysisResult | null> {
+): Promise<LLMAnalysisOutcome> {
   const { timeoutMs = 30_000 } = options;
 
   try {
@@ -364,27 +386,28 @@ export async function analyzeWithLLM(
     }
 
     if (!response.content) {
-      return null;
+      return { result: null, failureCategory: "empty_response", failureDetail: "LLM returned an empty response" };
     }
 
     const parsed = parseAnalysisResponse(response.content, config.model, response.usage);
     if (!parsed) {
-      return null;
+      return { result: null, failureCategory: "parse_error", failureDetail: "Failed to parse LLM response as valid analysis JSON" };
     }
 
     // Apply guardrails — reject degenerate LLM output
     const guardrail = validateLLMOutput(parsed);
     if (!guardrail.valid) {
-      console.error(`[llm-analysis] LLM output failed guardrails, falling back to heuristic: ${guardrail.reasons.join("; ")}`);
-      return null;
+      const detail = guardrail.reasons.join("; ");
+      console.error(`[llm-analysis] LLM output failed guardrails, falling back to heuristic: ${detail}`);
+      return { result: null, failureCategory: "guardrail_rejection", failureDetail: detail };
     }
 
-    return parsed;
+    return { result: parsed };
   } catch (err) {
     // Log but don't throw — caller falls back to heuristic
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[llm-analysis] LLM call failed, falling back to heuristic: ${msg}`);
-    return null;
+    return { result: null, failureCategory: "api_error", failureDetail: msg };
   }
 }
 

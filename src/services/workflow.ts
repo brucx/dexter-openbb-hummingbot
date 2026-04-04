@@ -170,7 +170,13 @@ export async function analyzeSymbol(options: AnalyzeOptions): Promise<AnalyzeRes
       researchPath,
       shortId,
       usedLLMAnalysis: proposal.usedLLMAnalysis ?? false,
-      llmStatus,
+      llmStatus: proposal.usedLLMAnalysis
+        ? llmStatus
+        : (proposal.fallbackCategory === "no_llm_configured"
+            ? (proposal.fallbackDetail || llmStatus)
+            : proposal.fallbackCategory
+              ? `LLM fallback — ${proposal.fallbackCategory}${proposal.fallbackDetail ? `: ${proposal.fallbackDetail}` : ""}`
+              : llmStatus),
     };
   } finally {
     service.stop();
