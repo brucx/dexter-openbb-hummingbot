@@ -174,6 +174,33 @@ Persist LLM-related metadata with proposals so historical review surfaces analys
 - [x] Tests: 10 new tests (metadata round-trip, persistence, display reconstruction, graceful handling of old proposals) → 297 total
 - [x] No schema migration needed — optional fields on existing JSON structure
 
+## Phase 2.14: Heuristic vs LLM Comparison Mode (completed)
+
+Add a CLI compare mode that generates both heuristic and LLM proposals for the
+same symbol and prints a compact side-by-side summary, so operators can judge
+whether LLM analysis adds value.
+
+- [x] `compareAnalysis()` — comparison engine that runs both paths on the same research snapshot
+  - Extracts shared signals once, feeds to both `autoDraftProposal` and `autoDraftProposalWithLLM`
+  - Produces `ComparisonResult` with structured deltas (confidence, thesis length, unique factors/risks, direction, token cost)
+  - No persistence — comparison is read-only diagnostic output
+- [x] `ComparisonDeltas` — measurable differences between the two paths
+  - Confidence agreement/divergence
+  - Factor and risk counts with unique-to-each-path lists
+  - Thesis length ratio
+  - Direction agreement
+  - Token cost of the LLM path
+- [x] `formatComparison()` — compact terminal display with box drawing
+  - LLM status (active model or fallback reason)
+  - Side-by-side confidence, direction, thesis excerpts
+  - Factor/risk counts and unique items from each path
+  - Verdict section: summarizes divergence points or notes minimal difference
+  - Data quality and timestamp footer
+- [x] `compareSymbol()` — workflow orchestration (research → compare, no persistence)
+- [x] CLI `compare <SYMBOL>` command (`dexter compare AAPL` or `dexter c AAPL`)
+- [x] Tests: 24 new tests (comparison engine, delta computation, formatting, edge cases) → 321 total
+- [x] npm script: `test:compare`
+
 ## Next Implementation Target
 
 - [ ] LLM governance: rate limiting / circuit breaker for LLM API calls

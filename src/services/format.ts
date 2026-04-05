@@ -6,6 +6,7 @@
 
 import type { TradeIntent } from "../types/trade-intent";
 import type { ResearchSnapshot } from "./research";
+import type { ComparisonResult } from "./compare";
 
 /** Status of an individual data source in the research snapshot. */
 export type DataSourceStatus = "live" | "fallback" | "unavailable";
@@ -312,6 +313,155 @@ function fmtSource(label: string, status: DataSourceStatus): string {
     case "fallback": return `${label}: SAMPLE`;
     case "unavailable": return `${label}: --`;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Comparison formatting
+// ---------------------------------------------------------------------------
+
+/**
+ * Format a ComparisonResult as a compact side-by-side terminal display.
+ *
+ * Shows: confidence, thesis excerpts, factor/risk counts, unique items,
+ * and a summary verdict on whether the two paths diverged meaningfully.
+ */
+export function formatComparison(result: ComparisonResult): string {
+  const { deltas } = result;
+  const lines: string[] = [];
+
+  const hIntent = result.heuristic.intent;
+  const lIntent = result.llm.intent;
+
+  lines.push(`┌─ Analysis Comparison: ${result.symbol} ─────────────────────`);
+  lines.push(`│`);
+
+  // LLM status
+  if (result.llmActuallyUsed) {
+    lines.push(`│ LLM path:     Active (${result.llm.llmModel ?? "unknown model"})`);
+    if (deltas.llmTokens > 0) {
+      lines.push(`│ Token cost:   ${deltas.llmTokens.toLocaleString()} tokens`);
+    }
+  } else {
+    const reason = result.llm.fallbackDetail ?? result.llm.fallbackCategory ?? "unknown";
+    lines.push(`│ LLM path:     Fell back to heuristic (${reason})`);
+    lines.push(`│ NOTE: Both columns show heuristic output — LLM was not available.`);
+  }
+  lines.push(`│`);
+
+  // Confidence
+  const confMatch = deltas.confidenceDiffers ? "DIFFER" : "agree";
+  lines.push(`│ ── Confidence ──────────────────── ${confMatch}`);
+  lines.push(`│   Heuristic: ${deltas.heuristicConfidence.toUpperCase()}`);
+  lines.push(`│   LLM:       ${deltas.llmConfidence.toUpperCase()}`);
+  lines.push(`│`);
+
+  // Direction
+  lines.push(`│ ── Direction ───────────────────── ${deltas.directionAgrees ? "agree" : "DIFFER"}`);
+  lines.push(`│   Heuristic: ${hIntent?.direction ?? "n/a"}`);
+  lines.push(`│   LLM:       ${lIntent?.direction ?? "n/a"}`);
+  lines.push(`│`);
+
+  // Thesis comparison
+  lines.push(`│ ── Thesis ──────────────────────────────────`);
+  lines.push(`│   Heuristic (${deltas.heuristicThesisLength} chars):`);
+  const hThesis = hIntent?.thesis ?? "(no proposal)";
+  for (const chunk of wrapText(hThesis, 56)) {
+    lines.push(`│     ${chunk}`);
+  }
+  lines.push(`│`);
+  lines.push(`│   LLM (${deltas.llmThesisLength} chars):`);
+  const lThesis = lIntent?.thesis ?? "(no proposal)";
+  for (const chunk of wrapText(lThesis, 56)) {
+    lines.push(`│     ${chunk}`);
+  }
+  lines.push(`│`);
+
+  // Factor/risk counts
+  lines.push(`│ ── Factors & Risks ────────────────────────`);
+  lines.push(`│   Factors:  Heuristic ${deltas.heuristicFactorCount}  |  LLM ${deltas.llmFactorCount}`);
+  lines.push(`│   Risks:    Heuristic ${deltas.heuristicRiskCount}  |  LLM ${deltas.llmRiskCount}`);
+
+  // Unique factors
+  if (deltas.heuristicOnlyFactors.length > 0 || deltas.llmOnlyFactors.length > 0) {
+    lines.push(`│`);
+    if (deltas.heuristicOnlyFactors.length > 0) {
+      lines.push(`│   Heuristic-only factors (${deltas.heuristicOnlyFactors.length}):`);
+      for (const f of deltas.heuristicOnlyFactors.slice(0, 5)) {
+        lines.push(`│     + ${truncate(f, 54)}`);
+      }
+      if (deltas.heuristicOnlyFactors.length > 5) {
+        lines.push(`│     (${deltas.heuristicOnlyFactors.length - 5} more)`);
+      }
+    }
+    if (deltas.llmOnlyFactors.length > 0) {
+      lines.push(`│   LLM-only factors (${deltas.llmOnlyFactors.length}):`);
+      for (const f of deltas.llmOnlyFactors.slice(0, 5)) {
+        lines.push(`│     + ${truncate(f, 54)}`);
+      }
+      if (deltas.llmOnlyFactors.length > 5) {
+        lines.push(`│     (${deltas.llmOnlyFactors.length - 5} more)`);
+      }
+    }
+  }
+
+  // Unique risks
+  if (deltas.heuristicOnlyRisks.length > 0 || deltas.llmOnlyRisks.length > 0) {
+    lines.push(`│`);
+    if (deltas.heuristicOnlyRisks.length > 0) {
+      lines.push(`│   Heuristic-only risks (${deltas.heuristicOnlyRisks.length}):`);
+      for (const r of deltas.heuristicOnlyRisks.slice(0, 5)) {
+        lines.push(`│     - ${truncate(r, 54)}`);
+      }
+      if (deltas.heuristicOnlyRisks.length > 5) {
+        lines.push(`│     (${deltas.heuristicOnlyRisks.length - 5} more)`);
+      }
+    }
+    if (deltas.llmOnlyRisks.length > 0) {
+      lines.push(`│   LLM-only risks (${deltas.llmOnlyRisks.length}):`);
+      for (const r of deltas.llmOnlyRisks.slice(0, 5)) {
+        lines.push(`│     - ${truncate(r, 54)}`);
+      }
+      if (deltas.llmOnlyRisks.length > 5) {
+        lines.push(`│     (${deltas.llmOnlyRisks.length - 5} more)`);
+      }
+    }
+  }
+
+  // Summary verdict
+  lines.push(`│`);
+  lines.push(`│ ── Verdict ─────────────────────────────────`);
+  if (!result.llmActuallyUsed) {
+    lines.push(`│   LLM was not available — no meaningful comparison possible.`);
+    lines.push(`│   Configure ANTHROPIC_API_KEY or OPENAI_API_KEY to enable.`);
+  } else {
+    const divergences: string[] = [];
+    if (deltas.confidenceDiffers) divergences.push("confidence");
+    if (!deltas.directionAgrees) divergences.push("direction");
+    if (deltas.llmOnlyFactors.length > 0) divergences.push("unique LLM factors");
+    if (deltas.llmOnlyRisks.length > 0) divergences.push("unique LLM risks");
+    const thesisRatio = deltas.llmThesisLength / Math.max(deltas.heuristicThesisLength, 1);
+    if (thesisRatio > 1.5 || thesisRatio < 0.5) divergences.push("thesis length");
+
+    if (divergences.length === 0) {
+      lines.push(`│   Minimal divergence — LLM output closely matches heuristic.`);
+      lines.push(`│   LLM may not add significant value for this data context.`);
+    } else {
+      lines.push(`│   Divergence on: ${divergences.join(", ")}`);
+      lines.push(`│   Review LLM-only items above to judge whether the`);
+      lines.push(`│   additional analysis justifies the token cost.`);
+    }
+  }
+
+  lines.push(`│`);
+  lines.push(`│ Data quality: ${result.heuristic.dataQuality.liveCount}/4 live sources`);
+  lines.push(`│ Compared at:  ${result.timestamp.slice(0, 19).replace("T", " ")}`);
+  lines.push(`└────────────────────────────────────────────────`);
+
+  return lines.join("\n");
+}
+
+function truncate(s: string, maxLen: number): string {
+  return s.length > maxLen ? s.slice(0, maxLen - 1) + "…" : s;
 }
 
 function formatNumber(n: number): string {

@@ -4,6 +4,7 @@
  *
  * Usage:
  *   npx tsx src/cli.ts analyze <SYMBOL>            Research a symbol and generate a proposal
+ *   npx tsx src/cli.ts compare <SYMBOL>            Compare heuristic vs LLM analysis side-by-side
  *   npx tsx src/cli.ts proposals list               List all saved proposals
  *   npx tsx src/cli.ts proposals show <id>          Show a single proposal in detail
  *   npx tsx src/cli.ts proposals approve <id>       Approve a proposal
@@ -11,9 +12,10 @@
  */
 
 import { createProposalStore } from "./services/persistence";
-import { formatProposal, formatProposalList, buildResearchSummary } from "./services/format";
+import { formatProposal, formatProposalList, buildResearchSummary, formatComparison } from "./services/format";
 import type { ListPriceContext, AnalysisModeInfo } from "./services/format";
 import { analyzeSymbol } from "./services/workflow";
+import { compareSymbol } from "./services/compare-workflow";
 
 const store = createProposalStore();
 
@@ -27,6 +29,7 @@ dexter — trade analysis and proposal management
 
 Usage:
   dexter analyze <SYMBOL>                   Research a symbol and generate a trade proposal
+  dexter compare <SYMBOL>                   Compare heuristic vs LLM analysis side-by-side
   dexter proposals list                     List all saved proposals
   dexter proposals list --status <status>   Filter by status (proposed, approved, rejected)
   dexter proposals show <id>                Show a single proposal in detail
@@ -37,6 +40,11 @@ Workflow:
   1. dexter analyze AAPL          Gather research, assess data, generate proposal
   2. dexter proposals show <id>   Review the proposal with full research context
   3. dexter proposals approve <id>   or   dexter proposals reject <id>
+
+Comparison:
+  dexter compare AAPL             Run both heuristic and LLM analysis on the same
+                                  data and show a side-by-side summary of differences.
+                                  Useful for judging whether LLM adds value.
 `);
 }
 
@@ -144,6 +152,36 @@ if (domain === "analyze" || domain === "a") {
     }
   } catch (err) {
     console.error(`\nAnalysis failed: ${(err as Error).message}`);
+    process.exit(1);
+  }
+} else if (domain === "compare" || domain === "c") {
+  const symbol = args[1];
+  if (!symbol || symbol.startsWith("-")) {
+    console.error("Usage: dexter compare <SYMBOL>");
+    console.error("  Example: dexter compare AAPL");
+    process.exit(1);
+  }
+
+  const bridgeMode = process.env.OPENBB_BRIDGE_MODE;
+  const env: Record<string, string> = {};
+  if (bridgeMode) {
+    env.OPENBB_BRIDGE_MODE = bridgeMode;
+  }
+
+  console.log(`\nComparing heuristic vs LLM analysis for ${symbol.toUpperCase()}...`);
+
+  try {
+    const result = await compareSymbol({
+      symbol: symbol.toUpperCase(),
+      pythonBin: process.env.OPENBB_PYTHON_BIN,
+      env,
+    });
+
+    console.log();
+    console.log(formatComparison(result.comparison));
+    console.log();
+  } catch (err) {
+    console.error(`\nComparison failed: ${(err as Error).message}`);
     process.exit(1);
   }
 } else if (domain === "proposals" || domain === "p") {
