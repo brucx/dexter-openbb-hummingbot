@@ -195,8 +195,23 @@ if (domain === "analyze" || domain === "a") {
         ? Boolean(snapshot.quote?.isFallback || snapshot.priceHistory?.isFallback || snapshot.financials?.isFallback || snapshot.news?.isFallback)
         : undefined;
 
+      // Reconstruct analysis mode from persisted metadata (if present)
+      let analysisMode: AnalysisModeInfo | undefined;
+      if (intent.analysis_llm != null) {
+        analysisMode = {
+          usedLLM: intent.analysis_llm,
+          model: intent.analysis_model,
+          fallbackReason: intent.analysis_llm
+            ? undefined
+            : (intent.analysis_fallback_detail ?? intent.analysis_fallback_category),
+          tokenUsage: intent.analysis_tokens
+            ? { promptTokens: intent.analysis_tokens.prompt, completionTokens: intent.analysis_tokens.completion, totalTokens: intent.analysis_tokens.total }
+            : undefined,
+        };
+      }
+
       console.log();
-      console.log(formatProposal(intent, { showId: true, usedFallbackData, researchSummary }));
+      console.log(formatProposal(intent, { showId: true, usedFallbackData, researchSummary, analysisMode }));
       if (!snapshot) {
         console.log(`  (No research snapshot saved for this proposal)`);
       }

@@ -158,6 +158,22 @@ Surface LLM token consumption per proposal so reviewers can see resource usage a
 - [x] No cost display — deferred (pricing varies by provider/model, better to show raw tokens than speculative cost math)
 - [x] Tests: 4 new token usage visibility tests → 287 total (44 in LLM test file)
 
+## Phase 2.13: LLM Metadata Persistence (completed)
+
+Persist LLM-related metadata with proposals so historical review surfaces analysis provenance.
+
+- [x] `TradeIntent` extended with optional `analysis_*` fields:
+  - `analysis_llm` (boolean) — whether LLM was used
+  - `analysis_model` (string) — model name when LLM was used
+  - `analysis_tokens` ({ prompt, completion, total }) — token counts
+  - `analysis_fallback_category` / `analysis_fallback_detail` — why heuristic was used
+- [x] Workflow stamps metadata onto intent before persistence (no extra files)
+- [x] `proposals show` reconstructs `AnalysisModeInfo` from persisted fields — shows analysis mode, model, tokens, or fallback reason
+- [x] Backwards-compatible: older proposals without `analysis_*` fields load cleanly; no analysis line shown
+- [x] Heuristic-only proposals stay clean — no invented metadata
+- [x] Tests: 10 new tests (metadata round-trip, persistence, display reconstruction, graceful handling of old proposals) → 297 total
+- [x] No schema migration needed — optional fields on existing JSON structure
+
 ## Next Implementation Target
 
 - [ ] LLM governance: rate limiting / circuit breaker for LLM API calls

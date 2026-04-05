@@ -153,7 +153,31 @@ export async function analyzeSymbol(options: AnalyzeOptions): Promise<AnalyzeRes
       proposal.usedLLMAnalysis = false;
     }
 
-    // Step 3: Persist
+    // Step 3: Stamp LLM metadata onto intent before persisting
+    if (proposal.intent) {
+      const intent = proposal.intent;
+      if (proposal.usedLLMAnalysis != null) {
+        intent.analysis_llm = proposal.usedLLMAnalysis;
+      }
+      if (proposal.llmModel) {
+        intent.analysis_model = proposal.llmModel;
+      }
+      if (proposal.llmTokenUsage) {
+        intent.analysis_tokens = {
+          prompt: proposal.llmTokenUsage.promptTokens,
+          completion: proposal.llmTokenUsage.completionTokens,
+          total: proposal.llmTokenUsage.totalTokens,
+        };
+      }
+      if (proposal.fallbackCategory) {
+        intent.analysis_fallback_category = proposal.fallbackCategory;
+      }
+      if (proposal.fallbackDetail) {
+        intent.analysis_fallback_detail = proposal.fallbackDetail;
+      }
+    }
+
+    // Step 4: Persist
     let proposalPath: string | null = null;
     let researchPath: string | null = null;
     let shortId: string | null = null;

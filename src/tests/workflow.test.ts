@@ -16,6 +16,7 @@ import { randomUUID } from "node:crypto";
 import { autoDraftProposal } from "../services/proposal";
 import { createProposalStore } from "../services/persistence";
 import { analyzeSymbol } from "../services/workflow";
+import { formatProposal } from "../services/format";
 import type { ProposalStore } from "../services/persistence";
 import type { ResearchSnapshot } from "../services/research";
 
@@ -468,6 +469,249 @@ test("WORKFLOW.md exists and describes the pipeline", async () => {
   assert(content.includes("Persist"), "should describe persistence step");
   assert(content.includes("Review in CLI"), "should describe review step");
   assert(content.includes("analyzeSymbol"), "should mention programmatic API");
+});
+
+// ---------------------------------------------------------------------------
+// Tests: LLM metadata persistence
+// ---------------------------------------------------------------------------
+
+console.log("\n=== Workflow: LLM metadata persistence ===\n");
+
+test("analyzeSymbol persists heuristic analysis metadata on intent", async () => {
+  const dir = tmpDir();
+  try {
+    const store = createProposalStore(dir);
+    const snap = fullLiveSnapshot("AAPL");
+    const mockService = createMockService(snap);
+
+    const result = await analyzeSymbol({
+      symbol: "AAPL",
+      store,
+      service: mockService,
+      useLLM: false, // force heuristic
+    });
+
+    assert(result.intent !== null, "intent should not be null");
+    assert(result.intent!.analysis_llm === false, "analysis_llm should be false for heuristic");
+    assert(result.intent!.analysis_model === undefined, "analysis_model should be undefined for heuristic");
+    assert(result.intent!.analysis_tokens === undefined, "analysis_tokens should be undefined for heuristic");
+
+    // Verify it round-trips through persistence
+    const loaded = store.load(result.intent!.id);
+    assert(loaded !== null, "should reload from disk");
+    assert(loaded!.analysis_llm === false, "persisted analysis_llm should be false");
+    assert(loaded!.analysis_model === undefined, "persisted analysis_model should be undefined");
+    assert(loaded!.analysis_tokens === undefined, "persisted analysis_tokens should be undefined");
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test("heuristic proposal has no analysis_tokens or analysis_model", async () => {
+  const dir = tmpDir();
+  try {
+    const store = createProposalStore(dir);
+    const snap = allFallbackSnapshot("TSLA");
+    const mockService = createMockService(snap);
+
+    const result = await analyzeSymbol({
+      symbol: "TSLA",
+      store,
+      service: mockService,
+      useLLM: false,
+    });
+
+    assert(result.intent !== null, "intent should not be null");
+    // Heuristic path should NOT populate LLM-specific fields
+    assert(result.intent!.analysis_model === undefined, "no model for heuristic");
+    assert(result.intent!.analysis_tokens === undefined, "no tokens for heuristic");
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test("older proposals without analysis metadata load cleanly", () => {
+  const dir = tmpDir();
+  try {
+    const store = createProposalStore(dir);
+    // Simulate an older proposal saved without analysis_* fields
+    const snap = fullLiveSnapshot("GOOG");
+    const result = autoDraftProposal(snap);
+    assert(result.intent !== null, "intent should not be null");
+
+    // Save without stamping metadata (simulates pre-metadata proposal)
+    store.save(result.intent!);
+    const loaded = store.load(result.intent!.id);
+    assert(loaded !== null, "should load old proposal");
+    assert(loaded!.analysis_llm === undefined, "analysis_llm should be undefined for old proposal");
+    assert(loaded!.analysis_model === undefined, "analysis_model should be undefined for old proposal");
+    assert(loaded!.analysis_tokens === undefined, "analysis_tokens should be undefined for old proposal");
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test("LLM metadata fields round-trip through persistence correctly", () => {
+  const dir = tmpDir();
+  try {
+    const store = createProposalStore(dir);
+    const snap = fullLiveSnapshot("MSFT");
+    const result = autoDraftProposal(snap);
+    const intent = result.intent!;
+
+    // Manually stamp LLM metadata (simulates what workflow does for LLM path)
+    intent.analysis_llm = true;
+    intent.analysis_model = "gpt-5.4";
+    intent.analysis_tokens = { prompt: 845, completion: 389, total: 1234 };
+
+    store.save(intent);
+    const loaded = store.load(intent.id);
+    assert(loaded !== null, "should load");
+    assert(loaded!.analysis_llm === true, "analysis_llm should round-trip");
+    assert(loaded!.analysis_model === "gpt-5.4", "analysis_model should round-trip");
+    assert(loaded!.analysis_tokens!.prompt === 845, "prompt tokens should round-trip");
+    assert(loaded!.analysis_tokens!.completion === 389, "completion tokens should round-trip");
+    assert(loaded!.analysis_tokens!.total === 1234, "total tokens should round-trip");
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test("fallback metadata round-trips through persistence", () => {
+  const dir = tmpDir();
+  try {
+    const store = createProposalStore(dir);
+    const snap = fullLiveSnapshot("AMZN");
+    const result = autoDraftProposal(snap);
+    const intent = result.intent!;
+
+    // Simulate a fallback scenario
+    intent.analysis_llm = false;
+    intent.analysis_fallback_category = "api_error";
+    intent.analysis_fallback_detail = "Request timed out after 30000ms";
+
+    store.save(intent);
+    const loaded = store.load(intent.id);
+    assert(loaded !== null, "should load");
+    assert(loaded!.analysis_llm === false, "analysis_llm should be false");
+    assert(loaded!.analysis_fallback_category === "api_error", "fallback_category should round-trip");
+    assert(loaded!.analysis_fallback_detail === "Request timed out after 30000ms", "fallback_detail should round-trip");
+    assert(loaded!.analysis_tokens === undefined, "no tokens for fallback");
+  } finally {
+    cleanup(dir);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Tests: CLI proposals show reconstructs analysis mode
+// ---------------------------------------------------------------------------
+
+console.log("\n=== Workflow: proposals show analysis mode reconstruction ===\n");
+
+test("CLI source reconstructs AnalysisModeInfo from persisted intent", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { join: pathJoin } = await import("node:path");
+  const cliSrc = readFileSync(pathJoin("src", "cli.ts"), "utf-8");
+
+  assert(cliSrc.includes("analysis_llm"), "proposals show should read analysis_llm from intent");
+  assert(cliSrc.includes("analysis_model"), "proposals show should read analysis_model from intent");
+  assert(cliSrc.includes("analysis_tokens"), "proposals show should read analysis_tokens from intent");
+  assert(cliSrc.includes("analysisMode"), "proposals show should pass analysisMode to formatProposal");
+});
+
+test("formatProposal shows persisted LLM metadata", () => {
+  // formatProposal imported at top of file
+  const intent = {
+    id: "test-llm-meta-0001",
+    timestamp: "2026-04-05T10:00:00.000Z",
+    asset: "NVDA",
+    direction: "long",
+    order_type: "market",
+    quantity: 5,
+    time_horizon: "1w",
+    max_position_pct: 3,
+    thesis: "Strong momentum driven by AI demand cycle.",
+    confidence: "high",
+    key_factors: ["Revenue growth"],
+    key_risks: ["Valuation"],
+    research_ref: "test-ref",
+    status: "proposed",
+    analysis_llm: true,
+    analysis_model: "gpt-5.4",
+    analysis_tokens: { prompt: 800, completion: 350, total: 1150 },
+  };
+
+  const analysisMode = {
+    usedLLM: intent.analysis_llm,
+    model: intent.analysis_model,
+    tokenUsage: { promptTokens: 800, completionTokens: 350, totalTokens: 1150 },
+  };
+
+  const output = formatProposal(intent, { analysisMode });
+  assert(output.includes("LLM (gpt-5.4)"), "should show LLM model name");
+  assert(output.includes("1,150"), "should show total tokens");
+  assert(output.includes("800"), "should show prompt tokens");
+  assert(output.includes("350"), "should show completion tokens");
+});
+
+test("formatProposal shows heuristic fallback from persisted metadata", () => {
+  // formatProposal imported at top of file
+  const intent = {
+    id: "test-heuristic-meta-0001",
+    timestamp: "2026-04-05T10:00:00.000Z",
+    asset: "TSLA",
+    direction: "short",
+    order_type: "market",
+    quantity: 3,
+    time_horizon: "1d",
+    max_position_pct: 2,
+    thesis: "Weak momentum signals.",
+    confidence: "low",
+    key_factors: ["Declining volume"],
+    key_risks: ["Squeeze risk"],
+    research_ref: "test-ref",
+    status: "proposed",
+    analysis_llm: false,
+    analysis_fallback_category: "api_error",
+    analysis_fallback_detail: "Request timed out",
+  };
+
+  const analysisMode = {
+    usedLLM: false,
+    fallbackReason: intent.analysis_fallback_detail,
+  };
+
+  const output = formatProposal(intent, { analysisMode });
+  assert(output.includes("Heuristic"), "should show Heuristic");
+  assert(output.includes("Request timed out"), "should show fallback reason");
+  assert(!output.includes("Tokens:"), "should NOT show tokens for heuristic");
+});
+
+test("formatProposal gracefully handles proposal without analysis metadata", () => {
+  // formatProposal imported at top of file
+  const intent = {
+    id: "test-old-0001",
+    timestamp: "2026-03-01T10:00:00.000Z",
+    asset: "AAPL",
+    direction: "long",
+    order_type: "limit",
+    limit_price: 180,
+    quantity: 10,
+    time_horizon: "1w",
+    max_position_pct: 2,
+    thesis: "Old proposal without analysis metadata.",
+    confidence: "medium",
+    key_factors: ["Factor"],
+    key_risks: ["Risk"],
+    research_ref: "test-ref",
+    status: "proposed",
+  };
+
+  // No analysisMode passed — simulates old proposal without metadata
+  const output = formatProposal(intent);
+  assert(!output.includes("Analysis:"), "should NOT show analysis line for old proposals");
+  assert(!output.includes("Tokens:"), "should NOT show tokens for old proposals");
+  assert(output.includes("AAPL"), "should still show the proposal content");
 });
 
 // ---------------------------------------------------------------------------

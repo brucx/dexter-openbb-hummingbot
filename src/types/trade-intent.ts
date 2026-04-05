@@ -87,6 +87,23 @@ export interface TradeIntent {
 
   /** Reason for rejection, if rejected */
   rejection_reason?: string;
+
+  // -- Analysis metadata (optional — absent for older proposals) --
+
+  /** Whether an LLM was used to generate this proposal (false = heuristic) */
+  analysis_llm?: boolean;
+
+  /** Model name that produced the analysis, when LLM was used */
+  analysis_model?: string;
+
+  /** Token usage from LLM analysis */
+  analysis_tokens?: { prompt: number; completion: number; total: number };
+
+  /** Why heuristic fallback was used instead of LLM, when applicable */
+  analysis_fallback_category?: string;
+
+  /** Human-readable detail about the fallback reason */
+  analysis_fallback_detail?: string;
 }
 
 /**
