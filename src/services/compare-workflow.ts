@@ -83,7 +83,8 @@ export async function compareSymbol(
 
     const comparison = await compareAnalysis(research, {
       timeoutMs: options.timeoutMs,
-      env: options.env,
+      // Don't pass bridge-only env to compareAnalysis — let detectLLMConfig
+      // fall back to process.env so it sees OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.
     });
 
     return { symbol, comparison };

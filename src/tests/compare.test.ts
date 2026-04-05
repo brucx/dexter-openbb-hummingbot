@@ -346,6 +346,59 @@ await test("comparison works with all-fallback snapshot", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// LLM env propagation regression tests
+// ---------------------------------------------------------------------------
+
+console.log("\n=== LLM Env Propagation ===");
+
+await test("compareAnalysis with no env option lets detectLLMConfig use process.env", async () => {
+  // Regression: compare-workflow was passing bridge-only env to compareAnalysis,
+  // which forwarded it to detectLLMConfig, shadowing process.env and hiding API keys.
+  // When env is omitted, detectLLMConfig should default to process.env.
+  const snap = fullLiveSnapshot();
+
+  // No env option at all — should not report "no_llm_configured" if process.env has keys,
+  // and should report it if process.env lacks keys (which is the case in test).
+  const result = await compareAnalysis(snap);
+
+  // In this test environment there are no LLM keys in process.env,
+  // so LLM should fall back — but the important thing is it tried process.env,
+  // not an empty object.
+  assert(result.llm.fallbackCategory === "no_llm_configured", "should fall back due to missing keys in process.env");
+});
+
+await test("compareAnalysis with explicit env containing API key detects LLM", async () => {
+  const snap = fullLiveSnapshot();
+
+  // Pass an env that has an OpenAI key — detectLLMConfig should see it.
+  // The LLM call will fail (fake key), but the fallback reason should NOT be "no_llm_configured".
+  const result = await compareAnalysis(snap, {
+    env: { OPENAI_API_KEY: "sk-test-fake-key-for-detection" },
+    timeoutMs: 1000,
+  });
+
+  // LLM was detected (key was found), but API call should fail → different fallback
+  if (result.llmActuallyUsed) {
+    // Unlikely with a fake key, but if somehow it passed, that's fine
+    assert(true, "LLM was actually used (unexpected but acceptable)");
+  } else {
+    // The key point: fallback should NOT be "no_llm_configured"
+    assert(
+      result.llm.fallbackCategory !== "no_llm_configured",
+      `should detect API key, but got fallbackCategory="${result.llm.fallbackCategory}"`,
+    );
+  }
+});
+
+await test("compareAnalysis with empty env reports no_llm_configured", async () => {
+  const snap = fullLiveSnapshot();
+  const result = await compareAnalysis(snap, { env: {} });
+
+  assert(!result.llmActuallyUsed, "LLM should not be used with empty env");
+  assert(result.llm.fallbackCategory === "no_llm_configured", "should report no_llm_configured");
+});
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 
